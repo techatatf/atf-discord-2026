@@ -1,6 +1,6 @@
-import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
+import { Database } from 'node-sqlite3-wasm';
 
 const dataDir = path.join(__dirname, '..', 'data');
 fs.mkdirSync(dataDir, { recursive: true });
@@ -37,9 +37,9 @@ export interface MentorRequest {
 }
 
 export const queries = {
-  getRequest: db.prepare<[string], MentorRequest>('SELECT * FROM mentor_requests WHERE user_id = ?'),
+  getRequest: db.prepare('SELECT * FROM mentor_requests WHERE user_id = ?'),
 
-  upsertRequest: db.prepare<[string, string]>(`
+  upsertRequest: db.prepare(`
     INSERT INTO mentor_requests (user_id, status, can_request_again, approval_message_id, requested_at)
     VALUES (?, 'pending', 0, NULL, ?)
     ON CONFLICT(user_id) DO UPDATE SET
@@ -51,11 +51,11 @@ export const queries = {
       decided_at = NULL
   `),
 
-  setApprovalMessageId: db.prepare<[string, string]>(`
+  setApprovalMessageId: db.prepare(`
     UPDATE mentor_requests SET approval_message_id = ? WHERE user_id = ?
   `),
 
-  updateDecision: db.prepare<[string, string, string, number, string]>(`
+  updateDecision: db.prepare(`
     UPDATE mentor_requests
     SET status = ?, decided_by = ?, decided_at = ?, can_request_again = ?
     WHERE user_id = ?
@@ -68,9 +68,9 @@ export const queries = {
   // /mentor-status <user>    — view a user's current request status
   // /mentor-list             — list all pending requests
 
-  getBotState: db.prepare<[string], { value: string }>('SELECT value FROM bot_state WHERE key = ?'),
+  getBotState: db.prepare('SELECT value FROM bot_state WHERE key = ?'),
 
-  setBotState: db.prepare<[string, string]>(`
+  setBotState: db.prepare(`
     INSERT INTO bot_state (key, value) VALUES (?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value
   `),

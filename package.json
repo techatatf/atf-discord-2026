@@ -9,12 +9,11 @@
     "dev": "ts-node src/index.ts"
   },
   "dependencies": {
-    "better-sqlite3": "^9.6.0",
     "discord.js": "^14.14.1",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "node-sqlite3-wasm": "^0.8.55"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.8",
     "@types/node": "^20.11.30",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.3"

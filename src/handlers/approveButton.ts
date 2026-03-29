@@ -14,14 +14,14 @@ export async function handleApproveButton(interaction: ButtonInteraction, target
     return;
   }
 
-  const request = queries.getRequest.get(targetUserId) as MentorRequest | undefined;
+  const request = queries.getRequest.get(targetUserId) as unknown as MentorRequest | undefined;
   if (!request || request.status !== 'pending') {
     await interaction.followUp({ content: 'This request has already been decided.', ephemeral: true });
     return;
   }
 
   const decidedAt = new Date();
-  queries.updateDecision.run('approved', interaction.user.id, decidedAt.toISOString(), 0, targetUserId);
+  queries.updateDecision.run(['approved', interaction.user.id, decidedAt.toISOString(), 0, targetUserId]);
 
   const approvalsChannel = interaction.guild?.channels.cache.get(config.mentorApprovalsChannelId) as TextChannel | undefined;
 

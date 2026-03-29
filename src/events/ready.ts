@@ -18,7 +18,8 @@ export async function onReady(client: Client): Promise<void> {
     return;
   }
 
-  const storedMessageId = queries.getBotState.get('mentor_request_message_id')?.value;
+  const botStateRow = queries.getBotState.get('mentor_request_message_id') as unknown as { value: string } | undefined;
+  const storedMessageId = botStateRow?.value;
 
   if (storedMessageId) {
     // Verify the message still exists
@@ -32,7 +33,7 @@ export async function onReady(client: Client): Promise<void> {
 
   const { embed, row } = buildRequestEmbed();
   const message = await requestsChannel.send({ embeds: [embed], components: [row] });
-  queries.setBotState.run('mentor_request_message_id', message.id);
+  queries.setBotState.run(['mentor_request_message_id', message.id]);
 
   console.log(`Posted persistent mentor request embed (message ID: ${message.id})`);
 }

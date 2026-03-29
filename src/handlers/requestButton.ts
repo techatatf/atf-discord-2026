@@ -7,7 +7,7 @@ export async function handleRequestButton(interaction: ButtonInteraction): Promi
   await interaction.deferReply({ ephemeral: true });
 
   const userId = interaction.user.id;
-  const existing = queries.getRequest.get(userId) as MentorRequest | undefined;
+  const existing = queries.getRequest.get(userId) as unknown as MentorRequest | undefined;
 
   if (existing) {
     if (existing.status === 'approved') {
@@ -25,7 +25,7 @@ export async function handleRequestButton(interaction: ButtonInteraction): Promi
   }
 
   const requestedAt = new Date();
-  queries.upsertRequest.run(userId, requestedAt.toISOString());
+  queries.upsertRequest.run([userId, requestedAt.toISOString()]);
 
   const approvalsChannel = interaction.guild?.channels.cache.get(config.mentorApprovalsChannelId) as TextChannel | undefined;
   if (!approvalsChannel) {
@@ -36,7 +36,7 @@ export async function handleRequestButton(interaction: ButtonInteraction): Promi
   const { embed, row } = buildPendingApprovalEmbed(interaction.user, requestedAt);
   const approvalMessage = await approvalsChannel.send({ embeds: [embed], components: [row] });
 
-  queries.setApprovalMessageId.run(approvalMessage.id, userId);
+  queries.setApprovalMessageId.run([approvalMessage.id, userId]);
 
   await interaction.editReply({ content: 'Your mentor request has been submitted! Our team will review it and reach out to you via DM.' });
 }

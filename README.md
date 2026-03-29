@@ -66,7 +66,7 @@ MOD_ROLE_ID=                  # Mod role ID (can approve/reject)
 When adding the bot to your server, it needs the following permissions:
 
 | Permission | Why |
-|---|---|
+| --- | --- |
 | Send Messages | Post embeds in channels |
 | Embed Links | Send rich embeds |
 | Manage Roles | Assign the Mentor role on approval |
@@ -81,12 +81,14 @@ OAuth2 scopes required: `bot`, `applications.commands`
 
 The following channels and roles must exist before running the bot:
 
-**Channels**
+### Channels
+
 - `#mentor-requests` — visible to all members; the bot posts one persistent embed here
 - `#mentor-approvals` — staff-only; approval embeds and error logs appear here
 - `#mentor-general` — restricted to the `Mentor` role
 
-**Roles**
+### Roles
+
 - `Mentor` — already exists; assigned automatically on approval
 - `Admin` — can approve/reject requests
 - `Mod` — can approve/reject requests
@@ -148,11 +150,7 @@ npm run build   # Compile TypeScript to dist/
 npm start       # Run compiled output
 ```
 
-**macOS note:** If `npm install` fails to build `better-sqlite3`, prefix with the SDK path:
-
-```bash
-CXX="clang++ -stdlib=libc++ -isystem /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1" npm install
-```
+> `node-sqlite3-wasm` is pure WebAssembly — no native compilation required on any platform.
 
 ---
 
@@ -160,12 +158,12 @@ CXX="clang++ -stdlib=libc++ -isystem /Library/Developer/CommandLineTools/SDKs/Ma
 
 SQLite database is stored at `data/mentor.db` (auto-created on first run, gitignored).
 
-**Schema**
+### Schema
 
 `mentor_requests`
 
 | Column | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | `user_id` | TEXT (PK) | Discord user ID |
 | `status` | TEXT | `pending`, `approved`, or `rejected` |
 | `can_request_again` | INTEGER | `1` = eligible to re-request, `0` = blocked |
@@ -177,14 +175,14 @@ SQLite database is stored at `data/mentor.db` (auto-created on first run, gitign
 `bot_state`
 
 | Column | Description |
-|---|---|
+| --- | --- |
 | `mentor_request_message_id` | ID of the persistent embed in `#mentor-requests` |
 
 ---
 
 ## Project Structure
 
-```
+```text
 src/
 ├── index.ts                  Entry point — creates Discord client
 ├── config.ts                 Loads and validates .env variables

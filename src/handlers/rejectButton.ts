@@ -14,7 +14,7 @@ export async function handleRejectButton(interaction: ButtonInteraction, targetU
     return;
   }
 
-  const request = queries.getRequest.get(targetUserId) as MentorRequest | undefined;
+  const request = queries.getRequest.get(targetUserId) as unknown as MentorRequest | undefined;
   if (!request || request.status !== 'pending') {
     await interaction.followUp({ content: 'This request has already been decided.', ephemeral: true });
     return;
@@ -22,7 +22,7 @@ export async function handleRejectButton(interaction: ButtonInteraction, targetU
 
   const decidedAt = new Date();
   // can_request_again = 0 by default on rejection; use /mentor-reset-request to re-enable
-  queries.updateDecision.run('rejected', interaction.user.id, decidedAt.toISOString(), 0, targetUserId);
+  queries.updateDecision.run(['rejected', interaction.user.id, decidedAt.toISOString(), 0, targetUserId]);
 
   const approvalsChannel = interaction.guild?.channels.cache.get(config.mentorApprovalsChannelId) as TextChannel | undefined;
 

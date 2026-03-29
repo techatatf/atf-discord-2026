@@ -1,0 +1,18 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
+function requireEnv(key: string): string {
+  const value = process.env[key];
+  if (!value) throw new Error(`Missing required environment variable: ${key}`);
+  return value;
+}
+
+export const config = {
+  token: requireEnv('DISCORD_TOKEN'),
+  mentorRoleId: requireEnv('MENTOR_ROLE_ID'),
+  mentorRequestsChannelId: requireEnv('MENTOR_REQUESTS_CHANNEL_ID'),
+  mentorApprovalsChannelId: requireEnv('MENTOR_APPROVALS_CHANNEL_ID'),
+  mentorGeneralChannelId: requireEnv('MENTOR_GENERAL_CHANNEL_ID'),
+  adminRoleId: requireEnv('ADMIN_ROLE_ID'),
+  modRoleId: requireEnv('MOD_ROLE_ID'),
+};

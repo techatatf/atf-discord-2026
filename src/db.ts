@@ -76,4 +76,15 @@ export const queries = {
   `),
 };
 
+function shutdown() {
+  for (const stmt of Object.values(queries)) {
+    stmt.finalize();
+  }
+  db.close();
+  process.exit(0);
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
 export default db;

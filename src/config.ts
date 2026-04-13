@@ -14,7 +14,8 @@ export const config = {
   mentorApprovalsChannelId: requireEnv('MENTOR_APPROVALS_CHANNEL_ID'),
   mentorGeneralChannelId: requireEnv('MENTOR_GENERAL_CHANNEL_ID'),
   generalRulesChannelId: requireEnv('GENERAL_RULES_CHANNEL_ID'),
-  inviteGenAllowlistChannels: requireEnv('INVITE_GEN_ALLOWLIST_CHANNELS').split(',').map(id => id.trim()).filter(Boolean),
+  inviteGenAllowlistChannels: (process.env.INVITE_GEN_ALLOWLIST_CHANNELS ?? '').split(',').map(id => id.trim()).filter(Boolean),
+  uploadthingToken: requireEnv('UPLOADTHING_TOKEN'),
   adminRoleId: requireEnv('ADMIN_ROLE_ID'),
   modRoleId: requireEnv('MOD_ROLE_ID'),
 };

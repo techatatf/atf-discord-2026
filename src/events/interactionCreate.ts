@@ -3,10 +3,12 @@ import { handleApproveButton } from '../handlers/approveButton';
 import { handleRejectButton } from '../handlers/rejectButton';
 import { handleRequestButton } from '../handlers/requestButton';
 import { execute as executeInviteCreate } from '../commands/inviteCreate';
+import { execute as executeInviteCreateBulk } from '../commands/inviteCreateBulk';
 import { execute as executeInviteGet } from '../commands/inviteGet';
 
 const commandHandlers: Record<string, (interaction: ChatInputCommandInteraction) => Promise<void>> = {
   'invite-create': executeInviteCreate,
+  'invite-create-bulk': executeInviteCreateBulk,
   'invite-get': executeInviteGet,
 };
 

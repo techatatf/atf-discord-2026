@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
+import { AttachmentBuilder, ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
 import { InviteRequest, queries } from '../db';
 import { checkInvitePermissions } from '../invite/permissions';
 
@@ -37,16 +37,24 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       ephemeral: true,
     });
   } else {
-    // Phase 2: bulk mode — will attach the file from UploadThing URL
-    await interaction.reply({
-      content: [
-        `**Invite Request** \`${row.request_id}\``,
-        `Mode: Bulk`,
-        `Output: ${row.output}`,
-        `Requested by: ${row.requested_by_display_name} (${row.requested_by_username})`,
-        `Requested at: ${row.requested_at}`,
-      ].join('\n'),
-      ephemeral: true,
-    });
+    const info = [
+      `**Invite Request** \`${row.request_id}\``,
+      `Mode: Bulk`,
+      `Requested by: ${row.requested_by_display_name} (${row.requested_by_username})`,
+      `Requested at: ${row.requested_at}`,
+    ].join('\n');
+
+    if (row.output) {
+      try {
+        const response = await fetch(row.output);
+        const csvBuffer = Buffer.from(await response.arrayBuffer());
+        const file = new AttachmentBuilder(csvBuffer, { name: `invite-bulk-${row.request_id}.csv` });
+        await interaction.reply({ content: info, files: [file], ephemeral: true });
+      } catch {
+        await interaction.reply({ content: `${info}\n\nFailed to fetch the output file. URL: ${row.output}`, ephemeral: true });
+      }
+    } else {
+      await interaction.reply({ content: `${info}\n\nNo output file available.`, ephemeral: true });
+    }
   }
 }

@@ -13,7 +13,7 @@ export function checkInvitePermissions(interaction: ChatInputCommandInteraction)
     return 'You do not have permission to use this command.';
   }
 
-  if (!config.inviteGenAllowlistChannels.includes(interaction.channelId)) {
+  if (config.inviteGenAllowlistChannels.length > 0 && !config.inviteGenAllowlistChannels.includes(interaction.channelId)) {
     return 'This command can only be used in designated channels.';
   }
 

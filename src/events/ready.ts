@@ -3,23 +3,25 @@ import { config } from '../config';
 import { queries } from '../db';
 import { buildRequestEmbed } from '../embeds/requestEmbed';
 import { data as inviteCreateCommand } from '../commands/inviteCreate';
+import { data as inviteCreateBulkCommand } from '../commands/inviteCreateBulk';
 import { data as inviteGetCommand } from '../commands/inviteGet';
 
 export async function onReady(client: Client): Promise<void> {
   console.log(`Logged in as ${client.user?.tag}`);
-
-  // Register slash commands
-  await client.application?.commands.set([
-    inviteCreateCommand,
-    inviteGetCommand,
-  ]);
-  console.log('Registered slash commands: /invite-create, /invite-get');
 
   const guild = client.guilds.cache.first();
   if (!guild) {
     console.error('Bot is not in any guild. Exiting.');
     process.exit(1);
   }
+
+  // Register slash commands at guild level (instant, no propagation delay)
+  await guild.commands.set([
+    inviteCreateCommand,
+    inviteCreateBulkCommand,
+    inviteGetCommand,
+  ]);
+  console.log('Registered slash commands: /invite-create, /invite-create-bulk, /invite-get');
 
   const requestsChannel = guild.channels.cache.get(config.mentorRequestsChannelId) as TextChannel | undefined;
   if (!requestsChannel) {

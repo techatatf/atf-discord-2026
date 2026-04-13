@@ -11,7 +11,8 @@
   "dependencies": {
     "discord.js": "^14.14.1",
     "dotenv": "^16.4.5",
-    "node-sqlite3-wasm": "^0.8.55"
+    "node-sqlite3-wasm": "^0.8.55",
+    "uploadthing": "^7.7.4"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",

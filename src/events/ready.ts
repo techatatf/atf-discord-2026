@@ -5,6 +5,7 @@ import { buildRequestEmbed } from '../embeds/requestEmbed';
 import { data as inviteCreateCommand } from '../commands/inviteCreate';
 import { data as inviteCreateBulkCommand } from '../commands/inviteCreateBulk';
 import { data as inviteGetCommand } from '../commands/inviteGet';
+import { data as testAtfCommand } from '../commands/testAtf';
 
 export async function onReady(client: Client): Promise<void> {
   console.log(`Logged in as ${client.user?.tag}`);
@@ -20,8 +21,9 @@ export async function onReady(client: Client): Promise<void> {
     inviteCreateCommand,
     inviteCreateBulkCommand,
     inviteGetCommand,
+    testAtfCommand,
   ]);
-  console.log('Registered slash commands: /invite-create, /invite-create-bulk, /invite-get');
+  console.log('Registered slash commands: /invite-create, /invite-create-bulk, /invite-get, /test-atf');
 
   const requestsChannel = guild.channels.cache.get(config.mentorRequestsChannelId) as TextChannel | undefined;
   if (!requestsChannel) {

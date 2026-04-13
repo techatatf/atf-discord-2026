@@ -61,19 +61,23 @@ MOD_ROLE_ID=                  # Mod role ID (can approve/reject)
 
 ---
 
-## Bot Permissions
+## Bot Permissions & OAuth2 Setup
 
-When adding the bot to your server, it needs the following permissions:
+**OAuth2 scopes:** `bot`, `applications.commands`
+
+**Required bot permissions:**
 
 | Permission | Why |
 | --- | --- |
-| Send Messages | Post embeds in channels |
-| Embed Links | Send rich embeds |
+| Send Messages | Post embeds and status messages in channels |
 | Manage Roles | Assign the Mentor role on approval |
 | Read Message History | Recover the persistent embed on restart |
-| Use External Emojis | Optional — for embed styling |
+| Create Instant Invite | Generate invite links via `/invite-create` and `/invite-create-bulk` |
+| Attach Files | Attach CSV output files for bulk invite requests |
 
-OAuth2 scopes required: `bot`, `applications.commands`
+To generate the invite URL: Discord Developer Portal > your app > **OAuth2** > **URL Generator** > check the scopes and permissions above, then copy the URL.
+
+If you need to update permissions later, kick the bot from Server Settings > Members, then re-invite with a new URL.
 
 ---
 

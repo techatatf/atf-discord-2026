@@ -2,9 +2,18 @@ import { Client, TextChannel } from 'discord.js';
 import { config } from '../config';
 import { queries } from '../db';
 import { buildRequestEmbed } from '../embeds/requestEmbed';
+import { data as inviteCreateCommand } from '../commands/inviteCreate';
+import { data as inviteGetCommand } from '../commands/inviteGet';
 
 export async function onReady(client: Client): Promise<void> {
   console.log(`Logged in as ${client.user?.tag}`);
+
+  // Register slash commands
+  await client.application?.commands.set([
+    inviteCreateCommand,
+    inviteGetCommand,
+  ]);
+  console.log('Registered slash commands: /invite-create, /invite-get');
 
   const guild = client.guilds.cache.first();
   if (!guild) {

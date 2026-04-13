@@ -22,9 +22,32 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS invite_requests (
+    request_id TEXT PRIMARY KEY,
+    mode TEXT NOT NULL,
+    requested_by_display_name TEXT NOT NULL,
+    requested_by_username TEXT NOT NULL,
+    requested_by_roles TEXT NOT NULL,
+    reason TEXT,
+    output TEXT,
+    requested_at TEXT NOT NULL
+  );
 `);
 
 export type RequestStatus = 'pending' | 'approved' | 'rejected';
+export type InviteMode = 'single' | 'bulk';
+
+export interface InviteRequest {
+  request_id: string;
+  mode: InviteMode;
+  requested_by_display_name: string;
+  requested_by_username: string;
+  requested_by_roles: string;
+  reason: string | null;
+  output: string | null;
+  requested_at: string;
+}
 
 export interface MentorRequest {
   user_id: string;
@@ -74,6 +97,15 @@ export const queries = {
     INSERT INTO bot_state (key, value) VALUES (?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value
   `),
+
+  getInviteRequest: db.prepare('SELECT * FROM invite_requests WHERE request_id = ?'),
+
+  insertInviteRequest: db.prepare(`
+    INSERT INTO invite_requests (request_id, mode, requested_by_display_name, requested_by_username, requested_by_roles, reason, output, requested_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `),
+
+  inviteRequestExists: db.prepare('SELECT 1 FROM invite_requests WHERE request_id = ?'),
 };
 
 function shutdown() {

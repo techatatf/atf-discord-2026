@@ -1,9 +1,32 @@
-import { ButtonInteraction, Interaction } from 'discord.js';
+import { ButtonInteraction, ChatInputCommandInteraction, Interaction } from 'discord.js';
 import { handleApproveButton } from '../handlers/approveButton';
 import { handleRejectButton } from '../handlers/rejectButton';
 import { handleRequestButton } from '../handlers/requestButton';
+import { execute as executeInviteCreate } from '../commands/inviteCreate';
+import { execute as executeInviteGet } from '../commands/inviteGet';
+
+const commandHandlers: Record<string, (interaction: ChatInputCommandInteraction) => Promise<void>> = {
+  'invite-create': executeInviteCreate,
+  'invite-get': executeInviteGet,
+};
 
 export async function onInteractionCreate(interaction: Interaction): Promise<void> {
+  if (interaction.isChatInputCommand()) {
+    const handler = commandHandlers[interaction.commandName];
+    if (!handler) return;
+
+    try {
+      await handler(interaction);
+    } catch (err) {
+      console.error(`Error handling command [${interaction.commandName}]:`, err);
+      const reply = interaction.replied || interaction.deferred
+        ? interaction.followUp({ content: 'An unexpected error occurred. Please try again or contact an admin.', ephemeral: true })
+        : interaction.reply({ content: 'An unexpected error occurred. Please try again or contact an admin.', ephemeral: true });
+      await reply.catch(() => null);
+    }
+    return;
+  }
+
   if (!interaction.isButton()) return;
 
   const button = interaction as ButtonInteraction;

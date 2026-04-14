@@ -101,25 +101,32 @@ The following channels and roles must exist before running the bot:
 
 ---
 
-## Running on a VM
+## Deploying to the Server
 
 ```bash
-# Install Node.js (v18+ recommended) if not already installed
-# Then clone the repo and:
-
+# First time setup
 npm install
 npm run build
-npm start
-```
-
-To keep the bot running after you disconnect, use a process manager:
-
-```bash
-# Using pm2
 npm install -g pm2
-pm2 start dist/index.js --name atf-bot
+pm2 start dist/index.js --name atf-discord-2026
 pm2 save
 pm2 startup   # follow the printed command to auto-start on reboot
+```
+
+```bash
+# After pulling new changes
+npm install        # in case dependencies changed
+npm run build      # recompile TypeScript to dist/
+pm2 stop atf-discord-2026
+rm -rf data/mentor.db.lock/   # clear stale DB lock if present
+pm2 start atf-discord-2026
+```
+
+```bash
+# Useful pm2 commands
+pm2 log atf-discord-2026      # tail logs
+pm2 status                     # check if running
+pm2 restart atf-discord-2026   # quick restart (no lock cleanup)
 ```
 
 Or as a systemd service — create `/etc/systemd/system/atf-bot.service`:

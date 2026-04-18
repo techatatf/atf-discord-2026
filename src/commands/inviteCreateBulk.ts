@@ -75,6 +75,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const now = new Date().toISOString();
 
   console.log(`[invite-bulk ${requestId}] Starting loop for ${rows.length} rows.`);
+  await interaction.user.send(
+    `**Bulk Invite Started**\nRequest ID: \`${requestId}\`\nFile: ${attachment.name}\nRows: ${rows.length}`
+  ).catch(() => {});
   const loopStart = Date.now();
 
   const { links, created, skipped, failed, roleAssignments } = await runBulkInviteLoop(
@@ -83,6 +86,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     (i, total) => {
       if (i > 0 && i % 25 === 0) {
         console.log(`[invite-bulk ${requestId}] Progress: ${i}/${total}`);
+        interaction.editReply(`Processing invites... ${i}/${total}`).catch(() => {});
       }
     },
   );
@@ -134,6 +138,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   // DM receipt
   await interaction.user.send(
-    `**Invite Request Receipt**\nRequest ID: \`${requestId}\`\nFile: ${attachment.name}\nCreated: ${created}${failed > 0 ? ` | Failed: ${failed}` : ''}`
+    `**Bulk Invite Complete**\nRequest ID: \`${requestId}\`\nFile: ${attachment.name}\nCreated: ${created}${skipped > 0 ? ` | Skipped: ${skipped}` : ''}${failed > 0 ? ` | Failed: ${failed}` : ''}`
   ).catch(() => {});
 }

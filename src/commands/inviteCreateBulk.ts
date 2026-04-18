@@ -158,7 +158,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.editReply({ content: summary, files: [discordFile], components: [] });
 
   const uploadLink = uploadUrl ? `\n[Download CSV](${uploadUrl})` : '';
+  const dmStatus = cancelled ? `Cancelled (${created}/${rows.length})` : 'Complete';
   await interaction.user.send(
-    `**Bulk Invite ${status}**\nRequest ID: \`${requestId}\`\nFile: ${attachment.name}\nCreated: ${created}${cancelled ? `/${rows.length}` : ''}${skipped > 0 ? ` | Skipped: ${skipped}` : ''}${failed > 0 ? ` | Failed: ${failed}` : ''}${uploadLink}`
+    `**Bulk Invite ${dmStatus}**\nRequest ID: \`${requestId}\`\nFile: ${attachment.name}\nCreated: ${created}${skipped > 0 ? ` | Skipped: ${skipped}` : ''}${failed > 0 ? ` | Failed: ${failed}` : ''}${uploadLink}`
   ).catch(() => {});
 }

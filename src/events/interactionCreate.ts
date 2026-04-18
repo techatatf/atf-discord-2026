@@ -1,15 +1,14 @@
-import { ButtonInteraction, ChatInputCommandInteraction, Interaction } from 'discord.js';
-import { handleApproveButton } from '../handlers/approveButton';
-import { handleRejectButton } from '../handlers/rejectButton';
-import { handleRequestButton } from '../handlers/requestButton';
+import { ChatInputCommandInteraction, Interaction } from 'discord.js';
 import { execute as executeInviteCreate } from '../commands/inviteCreate';
 import { execute as executeInviteCreateBulk } from '../commands/inviteCreateBulk';
 import { execute as executeInviteGet } from '../commands/inviteGet';
+import { execute as executeInviteStatus } from '../commands/inviteStatus';
 
 const commandHandlers: Record<string, (interaction: ChatInputCommandInteraction) => Promise<void>> = {
   'invite-create': executeInviteCreate,
   'invite-create-bulk': executeInviteCreateBulk,
   'invite-get': executeInviteGet,
+  'invite-status': executeInviteStatus,
 };
 
 export async function onInteractionCreate(interaction: Interaction): Promise<void> {
@@ -26,36 +25,5 @@ export async function onInteractionCreate(interaction: Interaction): Promise<voi
         : interaction.reply({ content: 'An unexpected error occurred. Please try again or contact an admin.', ephemeral: true });
       await reply.catch(() => null);
     }
-    return;
-  }
-
-  if (!interaction.isButton()) return;
-
-  const button = interaction as ButtonInteraction;
-  const { customId } = button;
-
-  try {
-    if (customId === 'mentor_request') {
-      await handleRequestButton(button);
-      return;
-    }
-
-    if (customId.startsWith('mentor_approve:')) {
-      const targetUserId = customId.split(':')[1];
-      await handleApproveButton(button, targetUserId);
-      return;
-    }
-
-    if (customId.startsWith('mentor_reject:')) {
-      const targetUserId = customId.split(':')[1];
-      await handleRejectButton(button, targetUserId);
-      return;
-    }
-  } catch (err) {
-    console.error(`Error handling interaction [${customId}]:`, err);
-    const reply = button.replied || button.deferred
-      ? button.followUp({ content: 'An unexpected error occurred. Please try again or contact an admin.', ephemeral: true })
-      : button.reply({ content: 'An unexpected error occurred. Please try again or contact an admin.', ephemeral: true });
-    await reply.catch(() => null);
   }
 }

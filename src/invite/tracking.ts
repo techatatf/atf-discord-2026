@@ -25,11 +25,10 @@ export function registerInviteEvents(client: Client): void {
     inviteUses.set(invite.guild.id, map);
   });
 
-  client.on('inviteDelete', (invite) => {
-    if (!invite.guild) return;
-    const map = inviteUses.get(invite.guild.id);
-    if (map) map.delete(invite.code);
-  });
+  // Don't remove on inviteDelete — single-use invites are deleted before
+  // guildMemberAdd fires, and removing them here would erase the cache entry
+  // needed to detect which invite was consumed.
+  client.on('inviteDelete', () => {});
 }
 
 /**

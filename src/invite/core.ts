@@ -1,12 +1,20 @@
 import { Guild } from 'discord.js';
 import { config } from '../config';
 import { queries } from '../db';
+import type { InviteRole } from './csv';
+
+export function resolveRoleId(role: InviteRole): string {
+  switch (role) {
+    case 'student': return config.studentRoleId;
+    case 'mentor': return config.mentorRoleId;
+  }
+}
 
 export interface InviteParams {
   reason: string;
   maxUses?: number;
   maxAge?: number; // in days
-  roleId?: string; // role to auto-assign to members who join via this invite
+  role: InviteRole;
 }
 
 export interface InviteResult {
@@ -97,9 +105,8 @@ export async function createSingleInvite(
     now,
   ]);
 
-  if (params.roleId) {
-    queries.insertInviteRoleAssignment.run([invite.code, params.roleId, requestId, now]);
-  }
+  const roleId = resolveRoleId(params.role);
+  queries.insertInviteRoleAssignment.run([invite.code, roleId, requestId, now]);
 
   return { requestId, inviteUrl: invite.url, inviteCode: invite.code };
 }

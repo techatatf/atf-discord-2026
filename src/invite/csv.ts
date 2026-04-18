@@ -1,8 +1,10 @@
+export type InviteRole = 'student' | 'mentor';
+
 export interface CsvRow {
   reason: string;
   maxUses: number;
   maxAge: number;
-  roleId?: string;
+  role: InviteRole;
   existingLink?: string;
 }
 
@@ -57,7 +59,7 @@ export function parseCsv(content: string): CsvParseResult {
   const maxUsesIdx = headers.indexOf('max-uses');
   const maxAgeIdx = headers.indexOf('max-age');
   const linkIdx = headers.indexOf('invite-link');
-  const roleIdIdx = headers.indexOf('role-id');
+  const roleIdx = headers.indexOf('role');
 
   const rows: CsvRow[] = [];
   const errors: string[] = [];
@@ -66,11 +68,12 @@ export function parseCsv(content: string): CsvParseResult {
     const fields = parseCsvLine(lines[i]);
     const rowNum = i + 1;
 
-    const rowRoleId = roleIdIdx !== -1 && fields[roleIdIdx] ? fields[roleIdIdx] : undefined;
-    if (rowRoleId && !/^\d{17,20}$/.test(rowRoleId)) {
-      errors.push(`Row ${rowNum}: role-id must be a Discord snowflake (17-20 digits), got "${rowRoleId}".`);
+    const rawRole = roleIdx !== -1 && fields[roleIdx] ? fields[roleIdx].toLowerCase() : '';
+    if (rawRole !== '' && rawRole !== 'student' && rawRole !== 'mentor') {
+      errors.push(`Row ${rowNum}: role must be "student" or "mentor", got "${fields[roleIdx]}".`);
       continue;
     }
+    const role: InviteRole = (rawRole || 'student') as InviteRole;
 
     // If re-upload and row already has a link, pass it through
     if (linkIdx !== -1 && fields[linkIdx] && fields[linkIdx] !== '') {
@@ -78,7 +81,7 @@ export function parseCsv(content: string): CsvParseResult {
         reason: fields[reasonIdx] || '',
         maxUses: 1,
         maxAge: 7,
-        roleId: rowRoleId,
+        role,
         existingLink: fields[linkIdx],
       });
       continue;
@@ -134,7 +137,7 @@ export function parseCsv(content: string): CsvParseResult {
       }
     }
 
-    rows.push({ reason, maxUses, maxAge, roleId: rowRoleId });
+    rows.push({ reason, maxUses, maxAge, role });
   }
 
   return { rows, errors };
@@ -148,13 +151,13 @@ function escapeCsvField(value: string): string {
 }
 
 export function buildOutputCsv(rows: CsvRow[], links: (string | null)[]): string {
-  const lines: string[] = ['reason,max-uses,max-age,role-id,invite-link'];
+  const lines: string[] = ['reason,max-uses,max-age,role,invite-link'];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const link = row.existingLink ?? links[i] ?? '';
     lines.push(
-      `${escapeCsvField(row.reason)},${row.maxUses},${row.maxAge},${row.roleId ?? ''},${link}`
+      `${escapeCsvField(row.reason)},${row.maxUses},${row.maxAge},${row.role},${link}`
     );
   }
 

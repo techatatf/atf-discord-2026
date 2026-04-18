@@ -3,7 +3,7 @@ import { UTApi, UTFile } from 'uploadthing/server';
 import { config } from '../config';
 import { queries } from '../db';
 import { runBulkInviteLoop } from '../invite/bulk';
-import { generateRequestId } from '../invite/core';
+import { generateRequestId, resolveRoleId } from '../invite/core';
 import { buildOutputCsv, parseCsv } from '../invite/csv';
 import { checkInvitePermissions } from '../invite/permissions';
 
@@ -87,7 +87,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   );
 
   for (const a of roleAssignments) {
-    queries.insertInviteRoleAssignment.run([a.inviteCode, a.roleId, requestId, now]);
+    queries.insertInviteRoleAssignment.run([a.inviteCode, resolveRoleId(a.role), requestId, now]);
   }
   const roleMappings = roleAssignments.length;
 

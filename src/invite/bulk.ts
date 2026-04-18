@@ -1,4 +1,4 @@
-import { CsvRow } from './csv';
+import { CsvRow, InviteRole } from './csv';
 
 export interface InviteCreator {
   createInvite(options: { maxUses: number; maxAge: number; unique: boolean }): Promise<{ code: string; url: string }>;
@@ -9,7 +9,7 @@ export interface BulkInviteRunResult {
   created: number;
   skipped: number;
   failed: number;
-  roleAssignments: { inviteCode: string; roleId: string }[];
+  roleAssignments: { inviteCode: string; role: InviteRole }[];
 }
 
 /**
@@ -23,7 +23,7 @@ export async function runBulkInviteLoop(
   onProgress?: (index: number, total: number) => void,
 ): Promise<BulkInviteRunResult> {
   const links: (string | null)[] = [];
-  const roleAssignments: { inviteCode: string; roleId: string }[] = [];
+  const roleAssignments: { inviteCode: string; role: InviteRole }[] = [];
   let created = 0;
   let skipped = 0;
   let failed = 0;
@@ -46,9 +46,7 @@ export async function runBulkInviteLoop(
       });
       links.push(invite.url);
       created++;
-      if (row.roleId) {
-        roleAssignments.push({ inviteCode: invite.code, roleId: row.roleId });
-      }
+      roleAssignments.push({ inviteCode: invite.code, role: row.role });
     } catch {
       links.push(null);
       failed++;

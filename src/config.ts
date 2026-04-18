@@ -18,4 +18,5 @@ export const config = {
   uploadthingToken: requireEnv('UPLOADTHING_TOKEN'),
   adminRoleId: requireEnv('ADMIN_ROLE_ID'),
   modRoleId: requireEnv('MOD_ROLE_ID'),
+  studentRoleId: requireEnv('STUDENT_ROLE_ID'),
 };

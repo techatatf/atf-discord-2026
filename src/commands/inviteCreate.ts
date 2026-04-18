@@ -1,5 +1,6 @@
 import { ChatInputCommandInteraction, GuildMember, SlashCommandBuilder } from 'discord.js';
 import { createSingleInvite } from '../invite/core';
+import type { InviteRole } from '../invite/csv';
 import { checkInvitePermissions } from '../invite/permissions';
 
 export const data = new SlashCommandBuilder()
@@ -14,8 +15,14 @@ export const data = new SlashCommandBuilder()
   .addIntegerOption(option =>
     option.setName('max-age').setDescription('Link expiry in days (default: 7)').setRequired(false)
   )
-  .addRoleOption(option =>
-    option.setName('role').setDescription('Role to auto-assign when someone joins via this invite').setRequired(false)
+  .addStringOption(option =>
+    option.setName('role')
+      .setDescription('Role to auto-assign when someone joins via this invite (default: student)')
+      .addChoices(
+        { name: 'Student', value: 'student' },
+        { name: 'Mentor', value: 'mentor' },
+      )
+      .setRequired(false)
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -31,12 +38,12 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const reason = interaction.options.getString('reason', true);
   const maxUses = interaction.options.getInteger('max-uses') ?? undefined;
   const maxAge = interaction.options.getInteger('max-age') ?? undefined;
-  const role = interaction.options.getRole('role');
+  const role = (interaction.options.getString('role') ?? 'student') as InviteRole;
 
   try {
     const result = await createSingleInvite(
       interaction.guild!,
-      { reason, maxUses, maxAge, roleId: role?.id },
+      { reason, maxUses, maxAge, role },
       {
         displayName: member.displayName,
         username: member.user.username,
@@ -44,7 +51,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       },
     );
 
-    const roleLine = role ? `\nAuto-assigns role: ${role.name}` : '';
+    const roleLine = `\nAuto-assigns role: ${role}`;
     await interaction.editReply(
       `**Invite Created**\nLink: ${result.inviteUrl}\nRequest ID: \`${result.requestId}\`\nReason: ${reason}${roleLine}`
     );
@@ -52,9 +59,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     // DM receipt
     await interaction.user.send(
       `**Invite Request Receipt**\nRequest ID: \`${result.requestId}\`\nReason: ${reason}${roleLine}`
-    ).catch(() => {
-      // DMs may be disabled — non-critical
-    });
+    ).catch(() => {});
   } catch (err) {
     const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
     await interaction.editReply(message);

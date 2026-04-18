@@ -38,7 +38,7 @@ async function test(name: string, fn: () => Promise<void> | void) {
 async function main() {
   console.log('parseCsv');
 
-  await test('parses valid fixture with role-ids and existing links', () => {
+  await test('parses valid fixture with roles and existing links', () => {
     const content = fs.readFileSync(path.join(FIXTURES, 'bulk-invite-valid.csv'), 'utf-8');
     const { rows, errors } = parseCsv(content);
 
@@ -48,19 +48,19 @@ async function main() {
     assert.equal(rows[0].reason, 'Student cohort Q2');
     assert.equal(rows[0].maxUses, 1);
     assert.equal(rows[0].maxAge, 7);
-    assert.equal(rows[0].roleId, '111111111111111111');
+    assert.equal(rows[0].role, 'student');
     assert.equal(rows[0].existingLink, undefined);
 
-    assert.equal(rows[1].roleId, '222222222222222222');
+    assert.equal(rows[1].role, 'mentor');
     assert.equal(rows[1].maxUses, 5);
 
-    assert.equal(rows[2].roleId, undefined);
+    assert.equal(rows[2].role, 'student');
 
     assert.equal(rows[3].existingLink, 'https://discord.gg/EXISTING123');
 
     // Quoted reason with embedded comma: quotes are unwrapped, comma preserved
     assert.equal(rows[4].reason, 'Student with quotes cohort, A');
-    assert.equal(rows[4].roleId, '111111111111111111');
+    assert.equal(rows[4].role, 'student');
   });
 
   await test('reports errors for invalid fixture', () => {
@@ -69,7 +69,7 @@ async function main() {
 
     assert.equal(rows.length, 1);
     assert.ok(errors.length >= 3, `expected 3+ errors, got ${errors.length}: ${errors.join('; ')}`);
-    assert.ok(errors.some(e => e.includes('role-id')), 'expected role-id error');
+    assert.ok(errors.some(e => e.includes('role')), 'expected role error');
     assert.ok(errors.some(e => e.includes('max-uses')), 'expected max-uses error');
     assert.ok(errors.some(e => e.includes('reason')), 'expected reason error');
   });
@@ -91,11 +91,11 @@ async function main() {
     assert.equal(result.failed, 0);
     assert.equal(channel.callCount, 4);
 
-    // 3 rows had role-ids (rows 0, 1, 4)
-    assert.equal(result.roleAssignments.length, 3);
-    assert.equal(result.roleAssignments[0].roleId, '111111111111111111');
-    assert.equal(result.roleAssignments[1].roleId, '222222222222222222');
-    assert.equal(result.roleAssignments[2].roleId, '111111111111111111');
+    assert.equal(result.roleAssignments.length, 4);
+    assert.equal(result.roleAssignments[0].role, 'student');
+    assert.equal(result.roleAssignments[1].role, 'mentor');
+    assert.equal(result.roleAssignments[2].role, 'student');
+    assert.equal(result.roleAssignments[3].role, 'student');
 
     // existingLink row should have null in links
     assert.equal(result.links[3], null);
@@ -126,8 +126,8 @@ async function main() {
   });
 
   await test('scales to 100 rows without hanging', async () => {
-    const many: string[] = ['reason,max-uses,max-age,role-id,invite-link'];
-    for (let i = 0; i < 100; i++) many.push(`reason ${i},1,7,333333333333333333,`);
+    const many: string[] = ['reason,max-uses,max-age,role,invite-link'];
+    for (let i = 0; i < 100; i++) many.push(`reason ${i},1,7,student,`);
     const { rows, errors } = parseCsv(many.join('\n'));
     assert.equal(errors.length, 0);
     assert.equal(rows.length, 100);
@@ -151,7 +151,7 @@ async function main() {
     const output = buildOutputCsv(rows, links);
 
     const header = output.split('\n')[0];
-    assert.equal(header, 'reason,max-uses,max-age,role-id,invite-link');
+    assert.equal(header, 'reason,max-uses,max-age,role,invite-link');
 
     const reparsed = parseCsv(output);
     assert.deepEqual(reparsed.errors, []);
@@ -161,9 +161,10 @@ async function main() {
     const existingRow = reparsed.rows[3];
     assert.equal(existingRow.existingLink, 'https://discord.gg/EXISTING123');
 
-    // Role-ids survive round-trip
-    assert.equal(reparsed.rows[0].roleId, '111111111111111111');
-    assert.equal(reparsed.rows[2].roleId, undefined);
+    // Roles survive round-trip
+    assert.equal(reparsed.rows[0].role, 'student');
+    assert.equal(reparsed.rows[1].role, 'mentor');
+    assert.equal(reparsed.rows[2].role, 'student');
   });
 
   if (process.exitCode) {

@@ -38,7 +38,7 @@ export function registerInviteEvents(client: Client): void {
  * the result is ambiguous (concurrent joins) or undetectable.
  */
 export async function detectUsedInvite(guild: Guild): Promise<string | null> {
-  const prev = inviteUses.get(guild.id) ?? new Map<string, number>();
+  const prev = new Map(inviteUses.get(guild.id) ?? new Map<string, number>());
 
   let current;
   try {

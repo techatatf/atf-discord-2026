@@ -107,6 +107,7 @@ export async function createSingleInvite(
 
   const roleId = resolveRoleId(params.role);
   queries.insertInviteRoleAssignment.run([invite.code, roleId, requestId, now]);
+  console.log(`[createSingleInvite] Created invite code=${invite.code} maxUses=${maxUses} maxAge=${maxAgeDays}d role=${params.role}`);
 
   return { requestId, inviteUrl: invite.url, inviteCode: invite.code };
 }

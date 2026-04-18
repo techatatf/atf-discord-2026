@@ -13,6 +13,9 @@ export const data = new SlashCommandBuilder()
   )
   .addIntegerOption(option =>
     option.setName('max-age').setDescription('Link expiry in days (default: 7)').setRequired(false)
+  )
+  .addRoleOption(option =>
+    option.setName('role').setDescription('Role to auto-assign when someone joins via this invite').setRequired(false)
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -28,11 +31,12 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const reason = interaction.options.getString('reason', true);
   const maxUses = interaction.options.getInteger('max-uses') ?? undefined;
   const maxAge = interaction.options.getInteger('max-age') ?? undefined;
+  const role = interaction.options.getRole('role');
 
   try {
     const result = await createSingleInvite(
       interaction.guild!,
-      { reason, maxUses, maxAge },
+      { reason, maxUses, maxAge, roleId: role?.id },
       {
         displayName: member.displayName,
         username: member.user.username,
@@ -40,13 +44,14 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       },
     );
 
+    const roleLine = role ? `\nAuto-assigns role: ${role.name}` : '';
     await interaction.editReply(
-      `**Invite Created**\nLink: ${result.inviteUrl}\nRequest ID: \`${result.requestId}\`\nReason: ${reason}`
+      `**Invite Created**\nLink: ${result.inviteUrl}\nRequest ID: \`${result.requestId}\`\nReason: ${reason}${roleLine}`
     );
 
     // DM receipt
     await interaction.user.send(
-      `**Invite Request Receipt**\nRequest ID: \`${result.requestId}\`\nReason: ${reason}`
+      `**Invite Request Receipt**\nRequest ID: \`${result.requestId}\`\nReason: ${reason}${roleLine}`
     ).catch(() => {
       // DMs may be disabled — non-critical
     });

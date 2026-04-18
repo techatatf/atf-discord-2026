@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts"
+    "dev": "ts-node src/index.ts",
+    "test": "ts-node --transpile-only tests/bulkInvite.test.ts"
   },
   "dependencies": {
     "discord.js": "^14.14.1",

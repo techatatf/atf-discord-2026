@@ -1,6 +1,19 @@
-import { AttachmentBuilder, ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
-import { InviteRequest, queries } from '../db';
+import { AttachmentBuilder, ChatInputCommandInteraction, Guild, SlashCommandBuilder } from 'discord.js';
+import { InviteRequest, InviteRoleAssignment, queries } from '../db';
 import { checkInvitePermissions } from '../invite/permissions';
+
+function formatRoleLine(guild: Guild, assignments: InviteRoleAssignment[]): string {
+  if (assignments.length === 0) return 'None';
+  const byRole = new Map<string, number>();
+  for (const a of assignments) byRole.set(a.role_id, (byRole.get(a.role_id) ?? 0) + 1);
+  return Array.from(byRole.entries())
+    .map(([roleId, count]) => {
+      const role = guild.roles.cache.get(roleId);
+      const name = role ? role.name : `<unknown:${roleId}>`;
+      return count > 1 ? `${name} (×${count})` : name;
+    })
+    .join(', ');
+}
 
 export const data = new SlashCommandBuilder()
   .setName('invite-get')
@@ -24,6 +37,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
+  const assignments = queries.getInviteRoleAssignmentsByRequest.all(requestId) as unknown as InviteRoleAssignment[];
+  const roleLine = formatRoleLine(interaction.guild!, assignments);
+
   if (row.mode === 'single') {
     await interaction.reply({
       content: [
@@ -31,6 +47,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         `Mode: Single`,
         `Link: ${row.output}`,
         `Reason: ${row.reason}`,
+        `Auto-assigns role: ${roleLine}`,
         `Requested by: ${row.requested_by_display_name} (${row.requested_by_username})`,
         `Requested at: ${row.requested_at}`,
       ].join('\n'),
@@ -40,6 +57,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const info = [
       `**Invite Request** \`${row.request_id}\``,
       `Mode: Bulk`,
+      `Role mappings: ${roleLine}`,
       `Requested by: ${row.requested_by_display_name} (${row.requested_by_username})`,
       `Requested at: ${row.requested_at}`,
     ].join('\n');

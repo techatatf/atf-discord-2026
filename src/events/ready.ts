@@ -5,6 +5,7 @@ import { buildRequestEmbed } from '../embeds/requestEmbed';
 import { data as inviteCreateCommand } from '../commands/inviteCreate';
 import { data as inviteCreateBulkCommand } from '../commands/inviteCreateBulk';
 import { data as inviteGetCommand } from '../commands/inviteGet';
+import { primeInviteCache } from '../invite/tracking';
 
 export async function onReady(client: Client): Promise<void> {
   console.log(`Logged in as ${client.user?.tag}`);
@@ -22,6 +23,8 @@ export async function onReady(client: Client): Promise<void> {
     inviteGetCommand,
   ]);
   console.log('Registered slash commands: /invite-create, /invite-create-bulk, /invite-get');
+
+  await primeInviteCache(guild);
 
   const requestsChannel = guild.channels.cache.get(config.mentorRequestsChannelId) as TextChannel | undefined;
   if (!requestsChannel) {

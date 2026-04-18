@@ -6,11 +6,13 @@ export interface InviteParams {
   reason: string;
   maxUses?: number;
   maxAge?: number; // in days
+  roleId?: string; // role to auto-assign to members who join via this invite
 }
 
 export interface InviteResult {
   requestId: string;
   inviteUrl: string;
+  inviteCode: string;
 }
 
 export function validateParams(params: InviteParams): string | null {
@@ -82,6 +84,8 @@ export async function createSingleInvite(
 
   const requestId = generateRequestId();
 
+  const now = new Date().toISOString();
+
   queries.insertInviteRequest.run([
     requestId,
     'single',
@@ -90,8 +94,12 @@ export async function createSingleInvite(
     requester.roles.join(', '),
     params.reason,
     invite.url,
-    new Date().toISOString(),
+    now,
   ]);
 
-  return { requestId, inviteUrl: invite.url };
+  if (params.roleId) {
+    queries.insertInviteRoleAssignment.run([invite.code, params.roleId, requestId, now]);
+  }
+
+  return { requestId, inviteUrl: invite.url, inviteCode: invite.code };
 }

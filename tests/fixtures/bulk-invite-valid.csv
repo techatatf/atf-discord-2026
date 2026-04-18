@@ -1,0 +1,6 @@
+reason,max-uses,max-age,role-id,invite-link
+Student cohort Q2,1,7,111111111111111111,
+Mentor onboarding,5,30,222222222222222222,
+General invite no role,1,7,,
+Existing link preserved,1,7,,https://discord.gg/EXISTING123
+Student with quotes "cohort, A",1,14,111111111111111111,

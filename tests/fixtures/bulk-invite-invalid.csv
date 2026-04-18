@@ -1,0 +1,5 @@
+reason,max-uses,max-age,role-id
+Valid row,1,7,
+,1,7,
+Bad max-uses,abc,7,
+Bad role-id,1,7,notarealid

@@ -2,9 +2,21 @@ import { AttachmentBuilder, ChatInputCommandInteraction, GuildMember, SlashComma
 import { UTApi, UTFile } from 'uploadthing/server';
 import { config } from '../config';
 import { queries } from '../db';
+import { runBulkInviteLoop } from '../invite/bulk';
 import { generateRequestId } from '../invite/core';
 import { buildOutputCsv, parseCsv } from '../invite/csv';
 import { checkInvitePermissions } from '../invite/permissions';
+
+const UPLOAD_TIMEOUT_MS = 30_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+    ),
+  ]);
+}
 
 export const data = new SlashCommandBuilder()
   .setName('invite-create-bulk')
@@ -58,42 +70,42 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  const links: (string | null)[] = [];
-  let created = 0;
-  let skipped = 0;
-  let failed = 0;
+  const requestId = generateRequestId();
+  const now = new Date().toISOString();
 
-  for (const row of rows) {
-    if (row.existingLink) {
-      links.push(null); // existing link is preserved in buildOutputCsv
-      skipped++;
-      continue;
-    }
+  console.log(`[invite-bulk ${requestId}] Starting loop for ${rows.length} rows.`);
+  const loopStart = Date.now();
 
-    try {
-      const invite = await (channel as any).createInvite({
-        maxUses: row.maxUses,
-        maxAge: row.maxAge * 86400,
-        unique: true,
-      });
-      links.push(invite.url);
-      created++;
-    } catch {
-      links.push(null);
-      failed++;
-    }
+  const { links, created, skipped, failed, roleAssignments } = await runBulkInviteLoop(
+    channel as any,
+    rows,
+    (i, total) => {
+      if (i > 0 && i % 25 === 0) {
+        console.log(`[invite-bulk ${requestId}] Progress: ${i}/${total}`);
+      }
+    },
+  );
+
+  for (const a of roleAssignments) {
+    queries.insertInviteRoleAssignment.run([a.inviteCode, a.roleId, requestId, now]);
   }
+  const roleMappings = roleAssignments.length;
+
+  console.log(`[invite-bulk ${requestId}] Loop done in ${Date.now() - loopStart}ms. created=${created} skipped=${skipped} failed=${failed}`);
 
   // Build output CSV
   const outputCsv = buildOutputCsv(rows, links);
-  const requestId = generateRequestId();
 
-  // Upload to UploadThing
-  const utapi = new UTApi();
-  const utFile = new UTFile([outputCsv], `invite-bulk-${requestId}.csv`);
-  const uploadResult = await utapi.uploadFiles(utFile);
-
-  const uploadUrl = uploadResult.data?.ufsUrl ?? null;
+  // Upload to UploadThing (with timeout so a bad token / hanging upload can't stall the interaction)
+  let uploadUrl: string | null = null;
+  try {
+    const utapi = new UTApi();
+    const utFile = new UTFile([outputCsv], `invite-bulk-${requestId}.csv`);
+    const uploadResult = await withTimeout(utapi.uploadFiles(utFile), UPLOAD_TIMEOUT_MS, 'UploadThing upload');
+    uploadUrl = uploadResult.data?.ufsUrl ?? null;
+  } catch (err) {
+    console.error(`[invite-bulk ${requestId}] Upload failed:`, err);
+  }
 
   // Record in database
   queries.insertInviteRequest.run([
@@ -104,7 +116,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     member.roles.cache.map(r => r.name).join(', '),
     attachment.name,
     uploadUrl,
-    new Date().toISOString(),
+    now,
   ]);
 
   // Reply with the CSV attached
@@ -114,6 +126,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   let summary = `**Bulk Invite Complete**\nRequest ID: \`${requestId}\`\nCreated: ${created}`;
   if (skipped > 0) summary += ` | Skipped (existing): ${skipped}`;
   if (failed > 0) summary += ` | Failed: ${failed}`;
+  if (roleMappings > 0) summary += ` | Role mappings: ${roleMappings}`;
 
   await interaction.editReply({ content: summary, files: [discordFile] });
 

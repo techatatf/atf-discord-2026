@@ -33,6 +33,13 @@ db.exec(`
     output TEXT,
     requested_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS invite_role_assignments (
+    invite_code TEXT PRIMARY KEY,
+    role_id TEXT NOT NULL,
+    request_id TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
 `);
 
 export type RequestStatus = 'pending' | 'approved' | 'rejected';
@@ -47,6 +54,13 @@ export interface InviteRequest {
   reason: string | null;
   output: string | null;
   requested_at: string;
+}
+
+export interface InviteRoleAssignment {
+  invite_code: string;
+  role_id: string;
+  request_id: string;
+  created_at: string;
 }
 
 export interface MentorRequest {
@@ -106,6 +120,15 @@ export const queries = {
   `),
 
   inviteRequestExists: db.prepare('SELECT 1 FROM invite_requests WHERE request_id = ?'),
+
+  getInviteRoleAssignment: db.prepare('SELECT * FROM invite_role_assignments WHERE invite_code = ?'),
+
+  getInviteRoleAssignmentsByRequest: db.prepare('SELECT * FROM invite_role_assignments WHERE request_id = ?'),
+
+  insertInviteRoleAssignment: db.prepare(`
+    INSERT INTO invite_role_assignments (invite_code, role_id, request_id, created_at)
+    VALUES (?, ?, ?, ?)
+  `),
 };
 
 function shutdown() {

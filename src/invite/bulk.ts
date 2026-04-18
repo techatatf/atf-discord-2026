@@ -21,6 +21,7 @@ export async function runBulkInviteLoop(
   channel: InviteCreator,
   rows: CsvRow[],
   onProgress?: (index: number, total: number) => void,
+  shouldCancel?: () => boolean,
 ): Promise<BulkInviteRunResult> {
   const links: (string | null)[] = [];
   const roleAssignments: { inviteCode: string; role: InviteRole }[] = [];
@@ -29,6 +30,7 @@ export async function runBulkInviteLoop(
   let failed = 0;
 
   for (let i = 0; i < rows.length; i++) {
+    if (shouldCancel?.()) break;
     const row = rows[i];
     onProgress?.(i, rows.length);
 

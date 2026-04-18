@@ -1,4 +1,4 @@
-import { AttachmentBuilder, ChatInputCommandInteraction, GuildMember, SlashCommandBuilder } from 'discord.js';
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChatInputCommandInteraction, GuildMember, SlashCommandBuilder } from 'discord.js';
 import { UTApi, UTFile } from 'uploadthing/server';
 import { config } from '../config';
 import { queries } from '../db';
@@ -78,18 +78,37 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.user.send(
     `**Bulk Invite Started**\nRequest ID: \`${requestId}\`\nFile: ${attachment.name}\nRows: ${rows.length}`
   ).catch(() => {});
+
+  const cancelId = `cancel-bulk-${requestId}`;
+  const cancelRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(cancelId).setLabel('Cancel').setStyle(ButtonStyle.Danger),
+  );
+
+  await interaction.editReply({ content: `Processing invites... 0/${rows.length}`, components: [cancelRow] });
+
+  let cancelled = false;
+  const reply = await interaction.fetchReply();
+  const collector = reply.createMessageComponentCollector({ time: 600_000 });
+  collector.on('collect', async (i) => {
+    cancelled = true;
+    await i.update({ content: 'Cancelling...', components: [] });
+  });
+
   const loopStart = Date.now();
 
   const { links, created, skipped, failed, roleAssignments } = await runBulkInviteLoop(
     channel as any,
     rows,
     (i, total) => {
-      if (i > 0 && i % 25 === 0) {
+      if (i > 0 && i % 25 === 0 && !cancelled) {
         console.log(`[invite-bulk ${requestId}] Progress: ${i}/${total}`);
-        interaction.editReply(`Processing invites... ${i}/${total}`).catch(() => {});
+        interaction.editReply({ content: `Processing invites... ${i}/${total}`, components: [cancelRow] }).catch(() => {});
       }
     },
+    () => cancelled,
   );
+
+  collector.stop();
 
   for (const a of roleAssignments) {
     queries.insertInviteRoleAssignment.run([a.inviteCode, resolveRoleId(a.role), requestId, now]);
@@ -129,15 +148,17 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const csvBuffer = Buffer.from(outputCsv, 'utf-8');
   const discordFile = new AttachmentBuilder(csvBuffer, { name: `invite-bulk-${requestId}.csv` });
 
-  let summary = `**Bulk Invite Complete**\nRequest ID: \`${requestId}\`\nCreated: ${created}`;
+  const status = cancelled ? 'Cancelled' : 'Complete';
+  let summary = `**Bulk Invite ${status}**\nRequest ID: \`${requestId}\`\nCreated: ${created}`;
+  if (cancelled) summary += `/${rows.length}`;
   if (skipped > 0) summary += ` | Skipped (existing): ${skipped}`;
   if (failed > 0) summary += ` | Failed: ${failed}`;
   if (roleMappings > 0) summary += ` | Role mappings: ${roleMappings}`;
 
-  await interaction.editReply({ content: summary, files: [discordFile] });
+  await interaction.editReply({ content: summary, files: [discordFile], components: [] });
 
-  // DM receipt
+  const uploadLink = uploadUrl ? `\n[Download CSV](${uploadUrl})` : '';
   await interaction.user.send(
-    `**Bulk Invite Complete**\nRequest ID: \`${requestId}\`\nFile: ${attachment.name}\nCreated: ${created}${skipped > 0 ? ` | Skipped: ${skipped}` : ''}${failed > 0 ? ` | Failed: ${failed}` : ''}`
+    `**Bulk Invite ${status}**\nRequest ID: \`${requestId}\`\nFile: ${attachment.name}\nCreated: ${created}${cancelled ? `/${rows.length}` : ''}${skipped > 0 ? ` | Skipped: ${skipped}` : ''}${failed > 0 ? ` | Failed: ${failed}` : ''}${uploadLink}`
   ).catch(() => {});
 }

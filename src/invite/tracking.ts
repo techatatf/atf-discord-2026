@@ -1,6 +1,6 @@
 import { Client, Guild } from 'discord.js';
+import { InviteRoleAssignment, queries } from '../db';
 
-// guildId -> inviteCode -> uses
 const inviteUses: Map<string, Map<string, number>> = new Map();
 
 export async function primeInviteCache(guild: Guild): Promise<void> {
@@ -25,17 +25,9 @@ export function registerInviteEvents(client: Client): void {
     inviteUses.set(invite.guild.id, map);
   });
 
-  // Don't remove on inviteDelete — single-use invites are deleted before
-  // guildMemberAdd fires, and removing them here would erase the cache entry
-  // needed to detect which invite was consumed.
   client.on('inviteDelete', () => {});
 }
 
-/**
- * Determines which invite was used by diffing the cached use counts
- * against the guild's current invites. Returns the code, or null if
- * the result is ambiguous (concurrent joins) or undetectable.
- */
 export async function detectUsedInvite(guild: Guild): Promise<string | null> {
   const prev = new Map(inviteUses.get(guild.id) ?? new Map<string, number>());
 
@@ -57,11 +49,22 @@ export async function detectUsedInvite(guild: Guild): Promise<string | null> {
     if (currUses > prevUses) candidates.push(invite.code);
   }
 
-  // Single-use invites vanish from the list once consumed.
   for (const code of prev.keys()) {
     if (!next.has(code)) candidates.push(code);
   }
 
   inviteUses.set(guild.id, next);
-  return candidates.length === 1 ? candidates[0] : null;
+
+  if (candidates.length === 1) return candidates[0];
+
+  // Multiple candidates — narrow down to invites we're actually tracking.
+  if (candidates.length > 1) {
+    const tracked = candidates.filter(code => {
+      const row = queries.getInviteRoleAssignment.get(code) as unknown as InviteRoleAssignment | undefined;
+      return !!row;
+    });
+    if (tracked.length === 1) return tracked[0];
+  }
+
+  return null;
 }

@@ -6,6 +6,7 @@ import { runBulkInviteLoop } from '../invite/bulk';
 import { generateRequestId, resolveRoleId } from '../invite/core';
 import { buildOutputCsv, parseCsv } from '../invite/csv';
 import { checkInvitePermissions } from '../invite/permissions';
+import { addInviteToCache } from '../invite/tracking';
 
 const UPLOAD_TIMEOUT_MS = 30_000;
 
@@ -88,6 +89,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   for (const a of roleAssignments) {
     queries.insertInviteRoleAssignment.run([a.inviteCode, resolveRoleId(a.role), requestId, now]);
+    addInviteToCache(interaction.guild!.id, a.inviteCode, 0);
   }
   const roleMappings = roleAssignments.length;
 

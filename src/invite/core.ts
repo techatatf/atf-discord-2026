@@ -2,6 +2,7 @@ import { Guild } from 'discord.js';
 import { config } from '../config';
 import { queries } from '../db';
 import type { InviteRole } from './csv';
+import { addInviteToCache } from './tracking';
 
 export function resolveRoleId(role: InviteRole): string {
   switch (role) {
@@ -107,6 +108,7 @@ export async function createSingleInvite(
 
   const roleId = resolveRoleId(params.role);
   queries.insertInviteRoleAssignment.run([invite.code, roleId, requestId, now]);
+  addInviteToCache(guild.id, invite.code, 0);
   console.log(`[createSingleInvite] Created invite code=${invite.code} maxUses=${maxUses} maxAge=${maxAgeDays}d role=${params.role}`);
 
   return { requestId, inviteUrl: invite.url, inviteCode: invite.code };

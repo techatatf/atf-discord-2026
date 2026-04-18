@@ -3,6 +3,12 @@ import { InviteRoleAssignment, queries } from '../db';
 
 const inviteUses: Map<string, Map<string, number>> = new Map();
 
+export function addInviteToCache(guildId: string, code: string, uses: number = 0): void {
+  const map = inviteUses.get(guildId) ?? new Map<string, number>();
+  map.set(code, uses);
+  inviteUses.set(guildId, map);
+}
+
 export async function primeInviteCache(guild: Guild): Promise<void> {
   try {
     const invites = await guild.invites.fetch();

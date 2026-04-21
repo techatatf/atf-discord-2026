@@ -11,6 +11,22 @@ export interface CsvRow {
 export interface CsvParseResult {
   rows: CsvRow[];
   errors: string[];
+  originalHeaders: string[];
+  rawRows: string[][];
+  linkColumnIndex: number;
+  roleColumnIndex: number;
+}
+
+const KNOWN_FIELDS: Record<string, string> = {
+  reason: 'reason',
+  maxuse: 'maxUses',
+  maxage: 'maxAge',
+  role: 'role',
+  invitelink: 'inviteLink',
+};
+
+function normalizeHeader(h: string): string {
+  return h.trim().toLowerCase().replace(/[-_ ]/g, '').replace(/s$/, '');
 }
 
 function parseCsvLine(line: string): string[] {
@@ -33,70 +49,102 @@ function parseCsvLine(line: string): string[] {
       if (ch === '"') {
         inQuotes = true;
       } else if (ch === ',') {
-        fields.push(current.trim());
+        fields.push(current);
         current = '';
       } else {
         current += ch;
       }
     }
   }
-  fields.push(current.trim());
+  fields.push(current);
   return fields;
+}
+
+function resolveColumnIndices(originalHeaders: string[]): { columnMap: Record<string, number>; errors: string[] } {
+  const columnMap: Record<string, number> = {};
+  const errors: string[] = [];
+
+  for (let i = 0; i < originalHeaders.length; i++) {
+    const normalized = normalizeHeader(originalHeaders[i]);
+    const knownField = KNOWN_FIELDS[normalized];
+    if (!knownField) continue;
+    if (columnMap[knownField] !== undefined) {
+      errors.push(
+        `Duplicate column: "${originalHeaders[i].trim()}" resolves to the same field as "${originalHeaders[columnMap[knownField]].trim()}".`
+      );
+    } else {
+      columnMap[knownField] = i;
+    }
+  }
+
+  return { columnMap, errors };
+}
+
+function emptyResult(errors: string[]): CsvParseResult {
+  return { rows: [], errors, originalHeaders: [], rawRows: [], linkColumnIndex: -1, roleColumnIndex: -1 };
 }
 
 export function parseCsv(content: string): CsvParseResult {
   const lines = content.split(/\r?\n/).filter(l => l.trim() !== '');
   if (lines.length < 2) {
-    return { rows: [], errors: ['CSV must have a header row and at least one data row.'] };
+    return emptyResult(['CSV must have a header row and at least one data row.']);
   }
 
-  const headers = parseCsvLine(lines[0]).map(h => h.toLowerCase());
-  const reasonIdx = headers.indexOf('reason');
+  const originalHeaders = parseCsvLine(lines[0]);
+  const { columnMap, errors: dupeErrors } = resolveColumnIndices(originalHeaders);
+
+  if (dupeErrors.length > 0) {
+    return { rows: [], errors: dupeErrors, originalHeaders, rawRows: [], linkColumnIndex: columnMap['inviteLink'] ?? -1, roleColumnIndex: columnMap['role'] ?? -1 };
+  }
+
+  const reasonIdx = columnMap['reason'] ?? -1;
   if (reasonIdx === -1) {
-    return { rows: [], errors: ['CSV is missing the required "reason" column.'] };
+    return { rows: [], errors: ['CSV is missing the required "reason" column.'], originalHeaders, rawRows: [], linkColumnIndex: -1, roleColumnIndex: -1 };
   }
 
-  const maxUsesIdx = headers.indexOf('max-uses');
-  const maxAgeIdx = headers.indexOf('max-age');
-  const linkIdx = headers.indexOf('invite-link');
-  const roleIdx = headers.indexOf('role');
+  const maxUsesIdx = columnMap['maxUses'] ?? -1;
+  const maxAgeIdx = columnMap['maxAge'] ?? -1;
+  const linkIdx = columnMap['inviteLink'] ?? -1;
+  const roleIdx = columnMap['role'] ?? -1;
 
   const rows: CsvRow[] = [];
+  const rawRows: string[][] = [];
   const errors: string[] = [];
 
   for (let i = 1; i < lines.length; i++) {
     const fields = parseCsvLine(lines[i]);
     const rowNum = i + 1;
 
-    const rawRole = roleIdx !== -1 && fields[roleIdx] ? fields[roleIdx].toLowerCase() : '';
+    const rawRole = roleIdx !== -1 ? (fields[roleIdx]?.trim().toLowerCase() ?? '') : '';
     if (rawRole !== '' && rawRole !== 'student' && rawRole !== 'mentor') {
-      errors.push(`Row ${rowNum}: role must be "student" or "mentor", got "${fields[roleIdx]}".`);
+      errors.push(`Row ${rowNum}: role must be "student" or "mentor", got "${fields[roleIdx]?.trim()}".`);
       continue;
     }
     const role: InviteRole = (rawRole || 'student') as InviteRole;
 
-    // If re-upload and row already has a link, pass it through
-    if (linkIdx !== -1 && fields[linkIdx] && fields[linkIdx] !== '') {
+    const linkValue = linkIdx !== -1 ? (fields[linkIdx]?.trim() ?? '') : '';
+    if (linkValue !== '') {
       rows.push({
-        reason: fields[reasonIdx] || '',
+        reason: fields[reasonIdx]?.trim() || '',
         maxUses: 1,
         maxAge: 7,
         role,
-        existingLink: fields[linkIdx],
+        existingLink: linkValue,
       });
+      rawRows.push(fields);
       continue;
     }
 
-    const reason = fields[reasonIdx];
-    if (!reason || reason.trim() === '') {
+    const reason = fields[reasonIdx]?.trim() ?? '';
+    if (reason === '') {
       errors.push(`Row ${rowNum}: reason cannot be empty.`);
       continue;
     }
 
     let maxUses = 1;
     if (maxUsesIdx !== -1) {
-      const raw = fields[maxUsesIdx];
-      if (raw === undefined || raw === '') {
+      const raw = fields[maxUsesIdx]?.trim() ?? '';
+      if (raw === '') {
         errors.push(`Row ${rowNum}: max-uses cell is empty (use -1 for default).`);
         continue;
       }
@@ -117,8 +165,8 @@ export function parseCsv(content: string): CsvParseResult {
 
     let maxAge = 7;
     if (maxAgeIdx !== -1) {
-      const raw = fields[maxAgeIdx];
-      if (raw === undefined || raw === '') {
+      const raw = fields[maxAgeIdx]?.trim() ?? '';
+      if (raw === '') {
         errors.push(`Row ${rowNum}: max-age cell is empty (use -1 for default).`);
         continue;
       }
@@ -138,9 +186,10 @@ export function parseCsv(content: string): CsvParseResult {
     }
 
     rows.push({ reason, maxUses, maxAge, role });
+    rawRows.push(fields);
   }
 
-  return { rows, errors };
+  return { rows, errors, originalHeaders, rawRows, linkColumnIndex: linkIdx, roleColumnIndex: roleIdx };
 }
 
 function escapeCsvField(value: string): string {
@@ -150,16 +199,40 @@ function escapeCsvField(value: string): string {
   return value;
 }
 
-export function buildOutputCsv(rows: CsvRow[], links: (string | null)[]): string {
-  const lines: string[] = ['reason,max-uses,max-age,role,invite-link'];
+export function buildOutputCsv(parseResult: CsvParseResult, links: (string | null)[]): string {
+  const { originalHeaders, rawRows, linkColumnIndex, roleColumnIndex, rows } = parseResult;
 
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    const link = row.existingLink ?? links[i] ?? '';
-    lines.push(
-      `${escapeCsvField(row.reason)},${row.maxUses},${row.maxAge},${row.role},${link}`
-    );
+  const outHeaders = [...originalHeaders];
+  let roleFillIdx = roleColumnIndex;
+  let linkFillIdx = linkColumnIndex;
+
+  if (roleColumnIndex === -1) {
+    roleFillIdx = outHeaders.length;
+    outHeaders.push('role');
+  }
+  if (linkColumnIndex === -1) {
+    linkFillIdx = outHeaders.length;
+    outHeaders.push('invite-link');
   }
 
-  return lines.join('\n');
+  const outputLines: string[] = [outHeaders.map(h => escapeCsvField(h)).join(',')];
+
+  for (let i = 0; i < rawRows.length; i++) {
+    const fields = [...rawRows[i]];
+    const row = rows[i];
+
+    while (fields.length < outHeaders.length) {
+      fields.push('');
+    }
+
+    fields[linkFillIdx] = row.existingLink ?? links[i] ?? '';
+
+    if (roleColumnIndex === -1) {
+      fields[roleFillIdx] = row.role;
+    }
+
+    outputLines.push(fields.map(f => escapeCsvField(f)).join(','));
+  }
+
+  return outputLines.join('\n');
 }

@@ -51,7 +51,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const csvContent = await response.text();
 
   // Parse and validate
-  const { rows, errors } = parseCsv(csvContent);
+  const parseResult = parseCsv(csvContent);
+  const { rows, errors } = parseResult;
   if (errors.length > 0) {
     const errorList = errors.slice(0, 15).join('\n');
     const suffix = errors.length > 15 ? `\n...and ${errors.length - 15} more errors.` : '';
@@ -119,7 +120,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   console.log(`[invite-bulk ${requestId}] Loop done in ${Date.now() - loopStart}ms. created=${created} skipped=${skipped} failed=${failed}`);
 
   // Build output CSV
-  const outputCsv = buildOutputCsv(rows, links);
+  const outputCsv = buildOutputCsv(parseResult, links);
 
   // Upload to UploadThing (with timeout so a bad token / hanging upload can't stall the interaction)
   let uploadUrl: string | null = null;

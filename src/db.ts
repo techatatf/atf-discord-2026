@@ -5,7 +5,7 @@ import { Database } from 'node-sqlite3-wasm';
 const dataDir = path.join(__dirname, '..', 'data');
 fs.mkdirSync(dataDir, { recursive: true });
 
-const db = new Database(path.join(dataDir, 'mentor.db'));
+const db = new Database(path.join(dataDir, 'bot.db'));
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS invite_requests (

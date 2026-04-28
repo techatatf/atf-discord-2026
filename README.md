@@ -1,6 +1,6 @@
 # ATF Discord Bot
 
-Discord bot for managing invite links with auto-role assignment.
+Discord bot for managing invite links with auto-role assignment on join.
 
 ---
 
@@ -18,7 +18,7 @@ cp .env.example .env
 npm run build && npm start
 ```
 
-On first run the bot will create `data/mentor.db` automatically.
+On first run the bot will create `data/bot.db` automatically.
 
 ---
 
@@ -111,7 +111,7 @@ pm2 startup   # follow the printed command to auto-start on reboot
 npm install        # in case dependencies changed
 npm run build      # recompile TypeScript to dist/
 pm2 stop atf-discord-2026
-rm -rf data/mentor.db.lock/   # clear stale DB lock if present
+rm -rf data/bot.db.lock/   # clear stale DB lock if present
 pm2 start atf-discord-2026
 ```
 
@@ -160,7 +160,7 @@ npm start       # Run compiled output
 
 ## Database
 
-SQLite database is stored at `data/mentor.db` (auto-created on first run, gitignored).
+SQLite database is stored at `data/bot.db` (auto-created on first run, gitignored).
 
 ### Schema
 
@@ -188,5 +188,5 @@ src/
     ├── tracking.ts           Invite cache and use-detection
     └── permissions.ts        Permission checks for invite commands
 data/
-└── mentor.db                 SQLite database (auto-created, gitignored)
+└── bot.db                   SQLite database (auto-created, gitignored)
 ```

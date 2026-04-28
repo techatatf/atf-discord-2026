@@ -1,7 +1,7 @@
 {
   "name": "atf-discord-2026",
   "version": "1.0.0",
-  "description": "ATF Discord mentor request/approval bot",
+  "description": "ATF Discord invite management bot",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

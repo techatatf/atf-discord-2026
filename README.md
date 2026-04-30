@@ -192,6 +192,7 @@ SQLite database is stored at `data/bot.db` (auto-created on first run, gitignore
 ```text
 src/
 ├── index.ts                  Entry point — creates Discord client
+├── logger.ts                 Patches console.* to append to data/bot.log
 ├── config.ts                 Loads and validates .env variables
 ├── db.ts                     SQLite setup and all prepared queries
 ├── commands/
@@ -209,5 +210,6 @@ src/
     ├── tracking.ts           Invite cache and use-detection
     └── permissions.ts        Permission checks for invite commands
 data/
-└── bot.db                   SQLite database (auto-created, gitignored)
+├── bot.db                   SQLite database (auto-created, gitignored)
+└── bot.log                  Append-only log file (survives restarts, auto-created)
 ```

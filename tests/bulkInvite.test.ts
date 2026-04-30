@@ -265,6 +265,62 @@ async function main() {
     assert.equal(channel.callCount, 5);
   });
 
+  console.log('runBulkInviteLoop — cancellation (shouldCancel)');
+
+  await test('stops when shouldCancel returns true and returns stoppedReason cancelled', async () => {
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    for (let i = 0; i < 10; i++) csvLines.push(`reason ${i},1,7,student,`);
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel();
+
+    let cancelAfter = 3;
+    let callCount = 0;
+    const shouldCancel = () => {
+      callCount++;
+      return callCount > cancelAfter;
+    };
+
+    const result = await runBulkInviteLoop(channel, rows, undefined, { shouldCancel });
+    assert.equal(result.stoppedReason, 'cancelled');
+    assert.equal(result.created, 3); // processed 3 rows, then cancelled before row 4
+    assert.equal(channel.callCount, 3);
+  });
+
+  await test('shouldCancel is checked before each row, not after', async () => {
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    for (let i = 0; i < 5; i++) csvLines.push(`reason ${i},1,7,student,`);
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel();
+
+    // Cancel immediately — should process 0 rows
+    const result = await runBulkInviteLoop(channel, rows, undefined, { shouldCancel: () => true });
+    assert.equal(result.stoppedReason, 'cancelled');
+    assert.equal(result.created, 0);
+    assert.equal(channel.callCount, 0);
+  });
+
+  await test('cancellation preserves already-created invites in results', async () => {
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    for (let i = 0; i < 10; i++) csvLines.push(`reason ${i},1,7,student,`);
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel();
+
+    // shouldCancel is checked at the TOP of each iteration, BEFORE onProgress and create.
+    // Use a simple counter: cancel after 5 calls to shouldCancel (i.e. before processing row 5).
+    let checkCount = 0;
+    const shouldCancel = () => ++checkCount > 5;
+
+    const result = await runBulkInviteLoop(channel, rows, undefined, { shouldCancel });
+    assert.equal(result.stoppedReason, 'cancelled');
+    // shouldCancel returns false for checks 1-5 (rows 0-4), true on check 6 (row 5) → 5 created
+    assert.equal(result.created, 5);
+    assert.equal(result.roleAssignments.length, 5);
+    // Links for created rows should be set, remaining should not exist
+    for (let i = 0; i < 5; i++) {
+      assert.ok(result.links[i]?.startsWith('https://discord.gg/'), `expected link at index ${i}`);
+    }
+  });
+
   console.log('buildOutputCsv');
 
   await test('round-trips through parse → build → parse', () => {

@@ -1,4 +1,4 @@
-import { AttachmentBuilder, ChatInputCommandInteraction, GuildMember, SlashCommandBuilder } from 'discord.js';
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChatInputCommandInteraction, ComponentType, GuildMember, SlashCommandBuilder } from 'discord.js';
 import { UTApi, UTFile } from 'uploadthing/server';
 import { config } from '../config';
 import { InviteRoleAssignment, queries } from '../db';
@@ -117,7 +117,32 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     `**Bulk Invite Started**\nRequest ID: \`${requestId}\`\nFile: ${attachment.name}\nRows: ${rows.length}`
   ).catch(() => {});
 
-  await interaction.editReply(`Processing invites... 0/${rows.length}`);
+  // Cancel button setup
+  const cancelButton = new ButtonBuilder()
+    .setCustomId(`bulk-cancel-${requestId}`)
+    .setLabel('Cancel')
+    .setStyle(ButtonStyle.Danger);
+  const cancelRow = new ActionRowBuilder<ButtonBuilder>().addComponents(cancelButton);
+
+  await interaction.editReply({
+    content: `Processing invites... 0/${rows.length}`,
+    components: [cancelRow],
+  });
+
+  // Set up cancellation flag and collector
+  let cancelled = false;
+  const reply = await interaction.fetchReply();
+  const collector = reply.createMessageComponentCollector({
+    componentType: ComponentType.Button,
+    filter: (i) => i.customId === `bulk-cancel-${requestId}`,
+    time: 15 * 60 * 1000, // 15 minutes max
+  });
+
+  collector.on('collect', async (i) => {
+    cancelled = true;
+    await i.reply({ ephemeral: true, content: '✅ Cancelling after current row...' });
+    collector.stop('cancelled');
+  });
 
   const loopStart = Date.now();
 
@@ -127,10 +152,17 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     (i, total) => {
       if (i > 0 && i % 25 === 0) {
         console.log(`[invite-bulk ${requestId}] Progress: ${i}/${total}`);
-        interaction.editReply(`Processing invites... ${i}/${total}`).catch(() => {});
+        interaction.editReply({
+          content: `Processing invites... ${i}/${total}`,
+          components: [cancelRow],
+        }).catch(() => {});
       }
     },
+    { shouldCancel: () => cancelled },
   );
+
+  // Stop collector if still active
+  collector.stop('done');
 
   for (const a of roleAssignments) {
     queries.insertInviteRoleAssignment.run([a.inviteCode, resolveRoleId(a.role), requestId, now]);
@@ -176,8 +208,13 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const csvBuffer = Buffer.from(outputCsv, 'utf-8');
   const discordFile = new AttachmentBuilder(csvBuffer, { name: `invite-bulk-${requestId}.csv` });
 
-  const title = stoppedReason === 'consecutive-errors' ? '**Bulk Invite Stopped**' : '**Bulk Invite Complete**';
-  let summary = `${title}\nRequest ID: \`${requestId}\`\nCreated: ${created}`;
+  const title = stoppedReason === 'cancelled'
+    ? '**Bulk Invite Cancelled**'
+    : stoppedReason === 'consecutive-errors'
+      ? '**Bulk Invite Stopped**'
+      : '**Bulk Invite Complete**';
+  let summary = `${title}\nRequest ID: \`${requestId}\`\nCreated: ${created}/${rows.length}`;
+  if (stoppedReason === 'cancelled') summary += ' (cancelled)';
   if (skipped > 0) summary += ` | Skipped (existing): ${skipped}`;
   if (failed > 0) summary += ` | Failed: ${failed}`;
   if (roleMappings > 0) summary += ` | Role mappings: ${roleMappings}`;
@@ -188,12 +225,17 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     summary += `\nFirst error (row ${firstError.row}): "${firstError.message}"`;
   }
 
-  await interaction.editReply({ content: summary, files: [discordFile] });
+  await interaction.editReply({ content: summary, files: [discordFile], components: [] });
 
   // DM
   const uploadLink = uploadUrl ? `\n[Download CSV](${uploadUrl})` : '';
-  const dmTitle = stoppedReason === 'consecutive-errors' ? '**Bulk Invite Stopped**' : '**Bulk Invite Complete**';
-  let dmBody = `${dmTitle}\nRequest ID: \`${requestId}\`\nFile: ${attachment.name}\nCreated: ${created}`;
+  const dmTitle = stoppedReason === 'cancelled'
+    ? '**Bulk Invite Cancelled**'
+    : stoppedReason === 'consecutive-errors'
+      ? '**Bulk Invite Stopped**'
+      : '**Bulk Invite Complete**';
+  let dmBody = `${dmTitle}\nRequest ID: \`${requestId}\`\nFile: ${attachment.name}\nCreated: ${created}/${rows.length}`;
+  if (stoppedReason === 'cancelled') dmBody += ' (cancelled)';
   if (skipped > 0) dmBody += ` | Skipped: ${skipped}`;
   if (failed > 0) dmBody += ` | Failed: ${failed}`;
   if (stoppedReason === 'consecutive-errors') {

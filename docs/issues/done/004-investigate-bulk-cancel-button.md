@@ -16,9 +16,22 @@ If the cancel button can be fixed reliably, fix it. If Discord's interaction mod
 
 ## Acceptance criteria
 
-- [ ] Root cause identified and documented (in a code comment or this issue)
+- [x] Root cause identified and documented (in a code comment or this issue)
 - [ ] Either: button works reliably and cancels within one iteration of the loop
-- [ ] Or: button and all cancellation code removed cleanly, completion summary no longer references "Cancelled" state
+- [x] Or: button and all cancellation code removed cleanly, completion summary no longer references "Cancelled" state
+
+## Completed
+
+2026-04-30
+
+- Removed cancel button, collector, and `cancelled` flag from `src/commands/inviteCreateBulk.ts`
+- Removed `shouldCancel` parameter and cancellation check from `src/invite/bulk.ts`
+- Removed "Cancelled" state from ephemeral reply summary and completion DM
+- Documented root cause in a code comment in `inviteCreateBulk.ts`:
+  `ButtonInteraction#update()` in the collector raced against `interaction.editReply()`
+  in the progress callback. Both edit the same ephemeral message through different
+  API paths, making cancellation unreliable for long-running ephemeral loops with
+  concurrent edits.
 
 ## Blocked by
 

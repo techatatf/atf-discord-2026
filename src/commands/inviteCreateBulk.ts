@@ -1,4 +1,4 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChatInputCommandInteraction, GuildMember, SlashCommandBuilder } from 'discord.js';
+import { AttachmentBuilder, ChatInputCommandInteraction, GuildMember, SlashCommandBuilder } from 'discord.js';
 import { UTApi, UTFile } from 'uploadthing/server';
 import { config } from '../config';
 import { queries } from '../db';
@@ -80,20 +80,15 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     `**Bulk Invite Started**\nRequest ID: \`${requestId}\`\nFile: ${attachment.name}\nRows: ${rows.length}`
   ).catch(() => {});
 
-  const cancelId = `cancel-bulk-${requestId}`;
-  const cancelRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(cancelId).setLabel('Cancel').setStyle(ButtonStyle.Danger),
-  );
+  // NOTE: Cancellation button removed (issue #4).
+  // Root cause: `ButtonInteraction#update()` in the collector raced against
+  // `interaction.editReply()` in the progress callback. Both edit the same
+  // ephemeral message through different API paths, causing unreliable UX
+  // where the "Cancelling..." state could be immediately overwritten by a
+  // progress update. Discord's interaction model makes cancellation
+  // unreliable for long-running ephemeral loops with concurrent edits.
 
-  await interaction.editReply({ content: `Processing invites... 0/${rows.length}`, components: [cancelRow] });
-
-  let cancelled = false;
-  const reply = await interaction.fetchReply();
-  const collector = reply.createMessageComponentCollector({ time: 600_000 });
-  collector.on('collect', async (i) => {
-    cancelled = true;
-    await i.update({ content: 'Cancelling...', components: [] });
-  });
+  await interaction.editReply(`Processing invites... 0/${rows.length}`);
 
   const loopStart = Date.now();
 
@@ -101,15 +96,12 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     channel as any,
     rows,
     (i, total) => {
-      if (i > 0 && i % 25 === 0 && !cancelled) {
+      if (i > 0 && i % 25 === 0) {
         console.log(`[invite-bulk ${requestId}] Progress: ${i}/${total}`);
-        interaction.editReply({ content: `Processing invites... ${i}/${total}`, components: [cancelRow] }).catch(() => {});
+        interaction.editReply(`Processing invites... ${i}/${total}`).catch(() => {});
       }
     },
-    () => cancelled,
   );
-
-  collector.stop();
 
   for (const a of roleAssignments) {
     queries.insertInviteRoleAssignment.run([a.inviteCode, resolveRoleId(a.role), requestId, now]);
@@ -155,18 +147,15 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const csvBuffer = Buffer.from(outputCsv, 'utf-8');
   const discordFile = new AttachmentBuilder(csvBuffer, { name: `invite-bulk-${requestId}.csv` });
 
-  const status = cancelled ? 'Cancelled' : 'Complete';
-  let summary = `**Bulk Invite ${status}**\nRequest ID: \`${requestId}\`\nCreated: ${created}`;
-  if (cancelled) summary += `/${rows.length}`;
+  let summary = `**Bulk Invite Complete**\nRequest ID: \`${requestId}\`\nCreated: ${created}`;
   if (skipped > 0) summary += ` | Skipped (existing): ${skipped}`;
   if (failed > 0) summary += ` | Failed: ${failed}`;
   if (roleMappings > 0) summary += ` | Role mappings: ${roleMappings}`;
 
-  await interaction.editReply({ content: summary, files: [discordFile], components: [] });
+  await interaction.editReply({ content: summary, files: [discordFile] });
 
   const uploadLink = uploadUrl ? `\n[Download CSV](${uploadUrl})` : '';
-  const dmStatus = cancelled ? `Cancelled (${created}/${rows.length})` : 'Complete';
   await interaction.user.send(
-    `**Bulk Invite ${dmStatus}**\nRequest ID: \`${requestId}\`\nFile: ${attachment.name}\nCreated: ${created}${skipped > 0 ? ` | Skipped: ${skipped}` : ''}${failed > 0 ? ` | Failed: ${failed}` : ''}${uploadLink}`
+    `**Bulk Invite Complete**\nRequest ID: \`${requestId}\`\nFile: ${attachment.name}\nCreated: ${created}${skipped > 0 ? ` | Skipped: ${skipped}` : ''}${failed > 0 ? ` | Failed: ${failed}` : ''}${uploadLink}`
   ).catch(() => {});
 }

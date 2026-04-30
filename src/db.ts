@@ -65,6 +65,8 @@ export const queries = {
     INSERT INTO invite_role_assignments (invite_code, role_id, request_id, created_at)
     VALUES (?, ?, ?, ?)
   `),
+
+  getAllInviteRoleAssignments: db.prepare('SELECT * FROM invite_role_assignments'),
 };
 
 function shutdown() {

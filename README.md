@@ -158,6 +158,27 @@ npm start       # Run compiled output
 
 ---
 
+## Commands
+
+### `/invite-capacity`
+
+Shows how many invite slots are left on the server and how many the bot owns.
+
+### `/invite-cleanup`
+
+Deletes dead (expired or fully-used) bot invites to free up slots.
+
+| Mode | What it deletes |
+|------|----------------|
+| `All dead bot invites` (default) | Bot invites that are expired or fully used |
+| `All bot invites` | Every bot invite, live or dead |
+| `All dead invites` | Any dead invite, including ones humans created |
+| `All invites` | Nuclear option — everything |
+
+Non-default modes require the `confirm` parameter: `i-know-what-im-doing-atf-bot`
+
+---
+
 ## Database
 
 SQLite database is stored at `data/bot.db` (auto-created on first run, gitignored).

@@ -1,10 +1,11 @@
 import { AttachmentBuilder, ChatInputCommandInteraction, GuildMember, SlashCommandBuilder } from 'discord.js';
 import { UTApi, UTFile } from 'uploadthing/server';
 import { config } from '../config';
-import { queries } from '../db';
+import { InviteRoleAssignment, queries } from '../db';
 import { runBulkInviteLoop } from '../invite/bulk';
 import { generateRequestId, resolveRoleId } from '../invite/core';
 import { buildOutputCsv, parseCsv } from '../invite/csv';
+import { categorizeInvites, ServerInvite } from '../invite/lifecycle';
 import { checkInvitePermissions } from '../invite/permissions';
 import { addInviteToCache } from '../invite/tracking';
 
@@ -65,11 +66,47 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
+  // Hard row cap: reject CSVs with more than 1000 data rows
+  if (rows.length > 1000) {
+    await interaction.editReply(`CSV has ${rows.length} data rows, which exceeds the maximum of 1000. Please split into smaller files.`);
+    return;
+  }
+
   // Create invites row by row
   const channel = interaction.guild!.channels.cache.get(config.generalRulesChannelId);
   if (!channel || !('createInvite' in channel)) {
     await interaction.editReply(`Could not find or use the rules channel (ID: ${config.generalRulesChannelId}).`);
     return;
+  }
+
+  // Dynamic capacity check: ensure enough invite slots before starting
+  const rowsNeedingInvites = rows.filter(r => !r.existingLink).length;
+  if (rowsNeedingInvites > 0) {
+    try {
+      const guild = interaction.guild!;
+      const discordInvites = await guild.invites.fetch();
+      const serverInvites: ServerInvite[] = [...discordInvites.values()].map(inv => ({
+        code: inv.code,
+        uses: inv.uses ?? 0,
+        maxUses: inv.maxUses ?? 0,
+        maxAge: inv.maxAge ?? 0,
+        createdTimestamp: inv.createdTimestamp,
+        expiresTimestamp: inv.expiresAt ? inv.expiresAt.getTime() : null,
+      }));
+      const assignments = queries.getAllInviteRoleAssignments.all() as unknown as InviteRoleAssignment[];
+      const botCodes = new Set(assignments.map(a => a.invite_code));
+      const capacity = categorizeInvites(serverInvites, botCodes);
+
+      if (rowsNeedingInvites > capacity.available) {
+        await interaction.editReply(
+          `You need ${rowsNeedingInvites} invite slots but only ${capacity.available} are available. Run \`/invite-cleanup\` first.`
+        );
+        return;
+      }
+    } catch (err) {
+      console.error('[invite-bulk] Failed to check capacity:', err);
+      // Non-fatal: proceed with the loop and let Discord API errors surface naturally
+    }
   }
 
   const requestId = generateRequestId();
@@ -80,19 +117,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     `**Bulk Invite Started**\nRequest ID: \`${requestId}\`\nFile: ${attachment.name}\nRows: ${rows.length}`
   ).catch(() => {});
 
-  // NOTE: Cancellation button removed (issue #4).
-  // Root cause: `ButtonInteraction#update()` in the collector raced against
-  // `interaction.editReply()` in the progress callback. Both edit the same
-  // ephemeral message through different API paths, causing unreliable UX
-  // where the "Cancelling..." state could be immediately overwritten by a
-  // progress update. Discord's interaction model makes cancellation
-  // unreliable for long-running ephemeral loops with concurrent edits.
-
   await interaction.editReply(`Processing invites... 0/${rows.length}`);
 
   const loopStart = Date.now();
 
-  const { links, created, skipped, failed, roleAssignments } = await runBulkInviteLoop(
+  const { links, created, skipped, failed, roleAssignments, firstError, stoppedReason } = await runBulkInviteLoop(
     channel as any,
     rows,
     (i, total) => {
@@ -109,7 +138,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   }
   const roleMappings = roleAssignments.length;
 
-  console.log(`[invite-bulk ${requestId}] Loop done in ${Date.now() - loopStart}ms. created=${created} skipped=${skipped} failed=${failed}`);
+  console.log(`[invite-bulk ${requestId}] Loop done in ${Date.now() - loopStart}ms. created=${created} skipped=${skipped} failed=${failed} stoppedReason=${stoppedReason}`);
 
   // Build output CSV
   const outputCsv = buildOutputCsv(parseResult, links);
@@ -147,15 +176,33 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const csvBuffer = Buffer.from(outputCsv, 'utf-8');
   const discordFile = new AttachmentBuilder(csvBuffer, { name: `invite-bulk-${requestId}.csv` });
 
-  let summary = `**Bulk Invite Complete**\nRequest ID: \`${requestId}\`\nCreated: ${created}`;
+  const title = stoppedReason === 'consecutive-errors' ? '**Bulk Invite Stopped**' : '**Bulk Invite Complete**';
+  let summary = `${title}\nRequest ID: \`${requestId}\`\nCreated: ${created}`;
   if (skipped > 0) summary += ` | Skipped (existing): ${skipped}`;
   if (failed > 0) summary += ` | Failed: ${failed}`;
   if (roleMappings > 0) summary += ` | Role mappings: ${roleMappings}`;
+  if (stoppedReason === 'consecutive-errors') {
+    summary += `\nStopped after 3 consecutive errors.`;
+  }
+  if (firstError) {
+    summary += `\nFirst error (row ${firstError.row}): "${firstError.message}"`;
+  }
 
   await interaction.editReply({ content: summary, files: [discordFile] });
 
+  // DM
   const uploadLink = uploadUrl ? `\n[Download CSV](${uploadUrl})` : '';
-  await interaction.user.send(
-    `**Bulk Invite Complete**\nRequest ID: \`${requestId}\`\nFile: ${attachment.name}\nCreated: ${created}${skipped > 0 ? ` | Skipped: ${skipped}` : ''}${failed > 0 ? ` | Failed: ${failed}` : ''}${uploadLink}`
-  ).catch(() => {});
+  const dmTitle = stoppedReason === 'consecutive-errors' ? '**Bulk Invite Stopped**' : '**Bulk Invite Complete**';
+  let dmBody = `${dmTitle}\nRequest ID: \`${requestId}\`\nFile: ${attachment.name}\nCreated: ${created}`;
+  if (skipped > 0) dmBody += ` | Skipped: ${skipped}`;
+  if (failed > 0) dmBody += ` | Failed: ${failed}`;
+  if (stoppedReason === 'consecutive-errors') {
+    dmBody += `\nStopped after 3 consecutive errors.`;
+  }
+  if (firstError) {
+    dmBody += `\nFirst error (row ${firstError.row}): "${firstError.message}"`;
+  }
+  dmBody += uploadLink;
+
+  await interaction.user.send(dmBody).catch(() => {});
 }

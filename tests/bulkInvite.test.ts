@@ -6,7 +6,7 @@ import { InviteCreator, runBulkInviteLoop } from '../src/invite/bulk';
 
 const FIXTURES = path.join(__dirname, 'fixtures');
 
-function makeFakeChannel(opts: { failIndex?: number; delayMs?: number } = {}): InviteCreator & { callCount: number } {
+function makeFakeChannel(opts: { failIndex?: number; delayMs?: number; failAfter?: number; failMessage?: string } = {}): InviteCreator & { callCount: number } {
   let counter = 0;
   return {
     callCount: 0,
@@ -15,7 +15,11 @@ function makeFakeChannel(opts: { failIndex?: number; delayMs?: number } = {}): I
       if (opts.delayMs) await new Promise(r => setTimeout(r, opts.delayMs));
       if (opts.failIndex !== undefined && counter === opts.failIndex) {
         counter++;
-        throw new Error('simulated failure');
+        throw new Error(opts.failMessage ?? 'simulated failure');
+      }
+      if (opts.failAfter !== undefined && counter >= opts.failAfter) {
+        counter++;
+        throw new Error(opts.failMessage ?? 'simulated failure');
       }
       const code = `CODE${counter++}`;
       return { code, url: `https://discord.gg/${code}` };
@@ -180,6 +184,85 @@ async function main() {
     assert.equal(result.created, 100);
     assert.equal(result.roleAssignments.length, 100);
     assert.ok(elapsed < 5_000, `100 rows with 2ms delay should finish under 5s, took ${elapsed}ms`);
+  });
+
+  console.log('runBulkInviteLoop — circuit breaker & first error');
+
+  await test('stops after 3 consecutive errors and returns stoppedReason', async () => {
+    // 10 rows, all fail from the start
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    for (let i = 0; i < 10; i++) csvLines.push(`reason ${i},1,7,student,`);
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel({ failAfter: 0, failMessage: 'Maximum number of invites reached' });
+
+    const result = await runBulkInviteLoop(channel, rows);
+    assert.equal(result.stoppedReason, 'consecutive-errors');
+    assert.equal(result.failed, 3);
+    assert.equal(result.created, 0);
+    assert.equal(channel.callCount, 3); // stopped after 3, didn't try all 10
+  });
+
+  await test('consecutive error counter resets on success', async () => {
+    // 10 rows: rows 0,1 succeed, row 2 fails, row 3 succeeds, rows 4,5 fail, row 6 succeeds, rows 7,8,9 fail → stops
+    let callIdx = 0;
+    const failPattern = [false, false, true, false, true, true, false, true, true, true];
+    const channel: InviteCreator & { callCount: number } = {
+      callCount: 0,
+      async createInvite() {
+        this.callCount++;
+        const shouldFail = failPattern[callIdx++];
+        if (shouldFail) throw new Error('intermittent error');
+        return { code: `CODE${callIdx}`, url: `https://discord.gg/CODE${callIdx}` };
+      },
+    };
+
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    for (let i = 0; i < 10; i++) csvLines.push(`reason ${i},1,7,student,`);
+    const { rows } = parseCsv(csvLines.join('\n'));
+
+    const result = await runBulkInviteLoop(channel, rows);
+    assert.equal(result.stoppedReason, 'consecutive-errors');
+    // Processed rows 0-9: 0=ok, 1=ok, 2=fail, 3=ok, 4=fail, 5=fail, 6=ok, 7=fail, 8=fail, 9=fail → stopped at row 9
+    assert.equal(result.created, 4);
+    assert.equal(result.failed, 6);
+    assert.equal(channel.callCount, 10);
+  });
+
+  await test('captures first error with row number and message', async () => {
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    for (let i = 0; i < 5; i++) csvLines.push(`reason ${i},1,7,student,`);
+    const { rows } = parseCsv(csvLines.join('\n'));
+    // Fail on index 2 (row 3 in 1-based)
+    const channel = makeFakeChannel({ failIndex: 2, failMessage: 'Rate limited' });
+
+    const result = await runBulkInviteLoop(channel, rows);
+    assert.equal(result.firstError?.row, 3);
+    assert.equal(result.firstError?.message, 'Rate limited');
+    assert.equal(result.stoppedReason, null); // only 1 failure, no circuit break
+  });
+
+  await test('firstError is null when no errors occur', async () => {
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    for (let i = 0; i < 3; i++) csvLines.push(`reason ${i},1,7,student,`);
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel();
+
+    const result = await runBulkInviteLoop(channel, rows);
+    assert.equal(result.firstError, null);
+    assert.equal(result.stoppedReason, null);
+  });
+
+  await test('circuit breaker with custom limit', async () => {
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    for (let i = 0; i < 10; i++) csvLines.push(`reason ${i},1,7,student,`);
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel({ failAfter: 0 });
+
+    // With limit of 5 instead of default 3
+    const result = await runBulkInviteLoop(channel, rows, undefined, { consecutiveErrorLimit: 5 });
+    assert.equal(result.stoppedReason, 'consecutive-errors');
+    assert.equal(result.failed, 5);
+    assert.equal(channel.callCount, 5);
   });
 
   console.log('buildOutputCsv');

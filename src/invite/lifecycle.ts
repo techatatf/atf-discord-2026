@@ -71,3 +71,21 @@ export interface InviteClassification {
   category: InviteCategory;
   state: InviteState;
 }
+
+export type CleanupMode = 'all-dead-bot-invites' | 'all-bot-invites' | 'all-dead-invites' | 'all-invites';
+
+export function selectInvitesForCleanup(
+  classified: InviteClassification[],
+  mode: CleanupMode,
+): InviteClassification[] {
+  switch (mode) {
+    case 'all-dead-bot-invites':
+      return classified.filter(c => c.category === 'bot' && c.state === 'dead');
+    case 'all-bot-invites':
+      return classified.filter(c => c.category === 'bot');
+    case 'all-dead-invites':
+      return classified.filter(c => c.state === 'dead');
+    case 'all-invites':
+      return classified;
+  }
+}

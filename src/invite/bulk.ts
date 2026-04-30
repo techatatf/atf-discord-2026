@@ -17,14 +17,18 @@ export interface BulkInviteRunResult {
 export interface BulkInviteLoopOptions {
   consecutiveErrorLimit?: number;
   shouldCancel?: () => boolean;
+  onInviteCreated?: (inviteCode: string, role: InviteRole) => void;
 }
 
 const DEFAULT_CONSECUTIVE_ERROR_LIMIT = 3;
 
 /**
  * Iterates rows and creates one invite per row (skipping rows with an existing link).
- * Pure against the database — the caller persists role assignments from the result.
  * Isolated from config/db imports so it can be unit-tested without env setup.
+ *
+ * The optional `onInviteCreated` callback is invoked immediately after each successful
+ * invite creation, allowing the caller to persist inline (preventing orphaned invites
+ * if the process crashes mid-loop).
  *
  * Circuit breaker: stops after N consecutive failures (default 3).
  * Returns firstError with 1-based row number and error message.
@@ -71,6 +75,7 @@ export async function runBulkInviteLoop(
       links.push(invite.url);
       created++;
       consecutiveErrors = 0;
+      options?.onInviteCreated?.(invite.code, row.role);
       roleAssignments.push({ inviteCode: invite.code, role: row.role });
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);

@@ -158,16 +158,18 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         }).catch(() => {});
       }
     },
-    { shouldCancel: () => cancelled },
+    {
+      shouldCancel: () => cancelled,
+      onInviteCreated: (inviteCode, role) => {
+        queries.insertInviteRoleAssignment.run([inviteCode, resolveRoleId(role), requestId, now]);
+        addInviteToCache(interaction.guild!.id, inviteCode, 0);
+      },
+    },
   );
 
   // Stop collector if still active
   collector.stop('done');
 
-  for (const a of roleAssignments) {
-    queries.insertInviteRoleAssignment.run([a.inviteCode, resolveRoleId(a.role), requestId, now]);
-    addInviteToCache(interaction.guild!.id, a.inviteCode, 0);
-  }
   const roleMappings = roleAssignments.length;
 
   console.log(`[invite-bulk ${requestId}] Loop done in ${Date.now() - loopStart}ms. created=${created} skipped=${skipped} failed=${failed} stoppedReason=${stoppedReason}`);

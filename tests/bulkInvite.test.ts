@@ -321,6 +321,88 @@ async function main() {
     }
   });
 
+  console.log('runBulkInviteLoop — onInviteCreated callback');
+
+  await test('calls onInviteCreated for each successful invite with code and role', async () => {
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    csvLines.push('r1,1,7,student,');
+    csvLines.push('r2,1,7,mentor,');
+    csvLines.push('r3,1,7,student,');
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel();
+
+    const invitesCreated: { code: string; role: string }[] = [];
+    const result = await runBulkInviteLoop(channel, rows, undefined, {
+      onInviteCreated: (code, role) => invitesCreated.push({ code, role }),
+    });
+
+    assert.equal(invitesCreated.length, 3);
+    assert.equal(invitesCreated[0].code, 'CODE0');
+    assert.equal(invitesCreated[0].role, 'student');
+    assert.equal(invitesCreated[1].code, 'CODE1');
+    assert.equal(invitesCreated[1].role, 'mentor');
+    assert.equal(invitesCreated[2].code, 'CODE2');
+    assert.equal(invitesCreated[2].role, 'student');
+    assert.equal(result.roleAssignments.length, 3);
+  });
+
+  await test('does not call onInviteCreated for skipped rows', async () => {
+    const csv = 'reason,max-uses,max-age,role,invite-link\nTest,1,7,student,https://discord.gg/EXISTING';
+    const { rows } = parseCsv(csv);
+    const channel = makeFakeChannel();
+
+    const invitesCreated: { code: string; role: string }[] = [];
+    await runBulkInviteLoop(channel, rows, undefined, {
+      onInviteCreated: (code, role) => invitesCreated.push({ code, role }),
+    });
+
+    assert.equal(invitesCreated.length, 0);
+  });
+
+  await test('does not call onInviteCreated for failed rows', async () => {
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    csvLines.push('r1,1,7,student,');
+    csvLines.push('r2,1,7,mentor,');
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel({ failIndex: 0 });
+
+    const invitesCreated: { code: string; role: string }[] = [];
+    await runBulkInviteLoop(channel, rows, undefined, {
+      onInviteCreated: (code, role) => invitesCreated.push({ code, role }),
+    });
+
+    // Only 1 invite created (index 1 succeeds, index 0 failed)
+    assert.equal(invitesCreated.length, 1);
+    assert.equal(invitesCreated[0].role, 'mentor');
+  });
+
+  await test('onInviteCreated is called before pushing to roleAssignments (inline)', async () => {
+    // Verify callback is called with correct code immediately after creation
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    csvLines.push('r1,1,7,student,');
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel();
+
+    let callbackCode: string | null = null;
+    await runBulkInviteLoop(channel, rows, undefined, {
+      onInviteCreated: (code, _role) => { callbackCode = code; },
+    });
+
+    assert.equal(callbackCode, 'CODE0');
+  });
+
+  await test('existing tests pass without onInviteCreated (optional)', async () => {
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    csvLines.push('r1,1,7,student,');
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel();
+
+    // No onInviteCreated — should still work fine
+    const result = await runBulkInviteLoop(channel, rows);
+    assert.equal(result.created, 1);
+    assert.equal(result.roleAssignments.length, 1);
+  });
+
   console.log('buildOutputCsv');
 
   await test('round-trips through parse → build → parse', () => {

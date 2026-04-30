@@ -1,7 +1,5 @@
 prod_pm2_restart:
 	@pm2 stop atf-discord-2026
-	@git pull
-	@git log
 	@npm run build
 	@pm2 start atf-discord-2026
 

@@ -125,10 +125,16 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   // Upload to UploadThing (with timeout so a bad token / hanging upload can't stall the interaction)
   let uploadUrl: string | null = null;
   try {
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      if (typeof args[0] === 'string' && args[0].includes('[uploadthing][deprecated]')) return;
+      originalWarn(...args);
+    };
     const utapi = new UTApi();
     const utFile = new UTFile([outputCsv], `invite-bulk-${requestId}.csv`);
     const uploadResult = await withTimeout(utapi.uploadFiles(utFile), UPLOAD_TIMEOUT_MS, 'UploadThing upload');
     uploadUrl = uploadResult.data?.ufsUrl ?? null;
+    console.warn = originalWarn;
   } catch (err) {
     console.error(`[invite-bulk ${requestId}] Upload failed:`, err);
   }

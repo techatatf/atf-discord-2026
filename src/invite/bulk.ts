@@ -49,7 +49,9 @@ export async function runBulkInviteLoop(
       links.push(invite.url);
       created++;
       roleAssignments.push({ inviteCode: invite.code, role: row.role });
-    } catch {
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error(`[invite-bulk] Row ${i + 1} failed — reason: "${row.reason}", maxUses: ${row.maxUses}, maxAge: ${row.maxAge}d, role: ${row.role} — error: ${errMsg}`);
       links.push(null);
       failed++;
     }

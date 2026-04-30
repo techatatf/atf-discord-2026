@@ -1,6 +1,6 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
 import { InviteRoleAssignment, queries } from '../db';
-import { categorizeInvites, ServerInvite } from '../invite/lifecycle';
+import { categorizeInvites, formatCapacityMessage, ServerInvite } from '../invite/lifecycle';
 import { checkInvitePermissions } from '../invite/permissions';
 
 export const data = new SlashCommandBuilder()
@@ -49,12 +49,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const botCodes = new Set(assignments.map(a => a.invite_code));
   const result = categorizeInvites(serverInvites, botCodes);
 
-  const lines = [
-    '**Invite Capacity**',
-    `Total server invites: ${result.total}/${result.limit}`,
-    `Bot-created: ${result.botCreated} (${result.botLive} live, ${result.botDead} dead)`,
-    `Available capacity: ${result.available}`,
-  ];
-
-  await interaction.editReply(lines.join('\n'));
+  await interaction.editReply(formatCapacityMessage(result));
 }

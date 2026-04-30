@@ -9,11 +9,30 @@ export interface ServerInvite {
 
 export interface InviteCapacity {
   total: number;
+  /** Nominal Discord limit — not a guaranteed hard ceiling; can be exceeded. */
   limit: number;
   botCreated: number;
   botLive: number;
   botDead: number;
   available: number;
+}
+
+/**
+ * Format the invite capacity data for display.
+ * Does not imply the limit is a hard ceiling.
+ */
+export function formatCapacityMessage(capacity: InviteCapacity): string {
+  const availableStr = capacity.available <= 0
+    ? `${capacity.available} (at or over limit)`
+    : `${capacity.available}`;
+
+  return [
+    '**Invite Capacity**',
+    `Total server invites: ${capacity.total}`,
+    `Nominal Discord limit: ${capacity.limit}`,
+    `Bot-created: ${capacity.botCreated} (${capacity.botLive} live, ${capacity.botDead} dead)`,
+    `Available capacity: ${availableStr}`,
+  ].join('\n');
 }
 
 function isInviteDead(invite: ServerInvite, now: Date): boolean {

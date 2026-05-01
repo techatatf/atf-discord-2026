@@ -1,5 +1,6 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
 import { InviteRoleAssignment, queries } from '../db';
+import { isBulkLocked } from '../invite/bulkLock';
 import { categorizeInvites, classifyInvites, CleanupMode, selectInvitesForCleanup, ServerInvite } from '../invite/lifecycle';
 import { checkInvitePermissions } from '../invite/permissions';
 
@@ -29,6 +30,15 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const denied = checkInvitePermissions(interaction);
   if (denied) {
     await interaction.reply({ content: denied, ephemeral: true });
+    return;
+  }
+
+  // Block if a bulk process is running on this guild
+  if (isBulkLocked(interaction.guild!.id)) {
+    await interaction.reply({
+      content: 'A bulk invite process is currently running. Please wait for it to complete before running cleanup.',
+      ephemeral: true,
+    });
     return;
   }
 

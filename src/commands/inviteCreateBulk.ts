@@ -3,6 +3,7 @@ import { UTApi, UTFile } from 'uploadthing/server';
 import { config } from '../config';
 import { InviteRoleAssignment, queries } from '../db';
 import { runBulkInviteLoop } from '../invite/bulk';
+import { acquireBulkLock, releaseBulkLock } from '../invite/bulkLock';
 import { generateRequestId, resolveRoleId } from '../invite/core';
 import { buildOutputCsv, parseCsv } from '../invite/csv';
 import { categorizeInvites, ServerInvite } from '../invite/lifecycle';
@@ -111,12 +112,15 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const requestId = generateRequestId();
   const now = new Date().toISOString();
+  const guildId = interaction.guild!.id;
 
+  acquireBulkLock(guildId);
   console.log(`[invite-bulk ${requestId}] Starting loop for ${rows.length} rows.`);
   await interaction.user.send(
     `**Bulk Invite Started**\nRequest ID: \`${requestId}\`\nFile: ${attachment.name}\nRows: ${rows.length}`
   ).catch(() => {});
 
+  try {
   // Cancel button setup
   const cancelButton = new ButtonBuilder()
     .setCustomId(`bulk-cancel-${requestId}`)
@@ -249,4 +253,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   dmBody += uploadLink;
 
   await interaction.user.send(dmBody).catch(() => {});
+  } finally {
+    releaseBulkLock(guildId);
+  }
 }

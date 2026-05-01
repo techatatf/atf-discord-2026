@@ -134,7 +134,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const reply = await interaction.fetchReply();
   const collector = reply.createMessageComponentCollector({
     componentType: ComponentType.Button,
-    filter: (i) => i.customId === `bulk-cancel-${requestId}`,
+    filter: (i) => i.customId === `bulk-cancel-${requestId}` && i.user.id === interaction.user.id,
     time: 15 * 60 * 1000, // 15 minutes max
   });
 

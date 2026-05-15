@@ -5,6 +5,7 @@ import { data as inviteGetCommand } from '../commands/inviteGet';
 import { data as inviteStatusCommand } from '../commands/inviteStatus';
 import { data as inviteCapacityCommand } from '../commands/inviteCapacity';
 import { data as inviteCleanupCommand } from '../commands/inviteCleanup';
+import { data as allMemberExportCommand } from '../commands/allMemberExport';
 import { primeInviteCache } from '../invite/tracking';
 
 export async function onReady(client: Client): Promise<void> {
@@ -23,8 +24,9 @@ export async function onReady(client: Client): Promise<void> {
     inviteStatusCommand,
     inviteCapacityCommand,
     inviteCleanupCommand,
+    allMemberExportCommand,
   ]);
-  console.log('Registered slash commands: /invite-create, /invite-create-bulk, /invite-get, /invite-status, /invite-capacity, /invite-cleanup');
+  console.log('Registered slash commands: /invite-create, /invite-create-bulk, /invite-get, /invite-status, /invite-capacity, /invite-cleanup, /all-member-export');
 
   await primeInviteCache(guild);
 }

@@ -5,6 +5,7 @@ import { execute as executeInviteGet } from '../commands/inviteGet';
 import { execute as executeInviteStatus } from '../commands/inviteStatus';
 import { execute as executeInviteCapacity } from '../commands/inviteCapacity';
 import { execute as executeInviteCleanup } from '../commands/inviteCleanup';
+import { execute as executeAllMemberExport } from '../commands/allMemberExport';
 
 const commandHandlers: Record<string, (interaction: ChatInputCommandInteraction) => Promise<void>> = {
   'invite-create': executeInviteCreate,
@@ -13,6 +14,7 @@ const commandHandlers: Record<string, (interaction: ChatInputCommandInteraction)
   'invite-status': executeInviteStatus,
   'invite-capacity': executeInviteCapacity,
   'invite-cleanup': executeInviteCleanup,
+  'all-member-export': executeAllMemberExport,
 };
 
 export async function onInteractionCreate(interaction: Interaction): Promise<void> {

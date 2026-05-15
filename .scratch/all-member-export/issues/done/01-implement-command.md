@@ -34,4 +34,4 @@ The bot needs a way for staff to export a roster of all Discord server members a
 
 - `GatewayIntentBits.GuildMembers` is already declared in `src/index.ts` but requires the **privileged intent** to be enabled in the Discord Developer Portal under the bot's settings. Mention this in a comment in the command file or the PR description — it's a deployment step, not a code step.
 - Use the existing `escapeCsvField` helper pattern from `src/invite/csv.ts` (or inline the same logic) to handle commas/quotes in display names and role names.
-- Roles with semicolons in their name should be escaped or quoted in the roles column — handle this consistently.
+- Roles with semicolons in their name: wrap the individual role name in double quotes within the roles cell, doubling any internal quotes (CSV-inside-CSV). Example: a member with roles `Mentor` and `Q;A Lead` produces `Mentor;"Q;A Lead"` in the roles cell. The outer `escapeCsvField` then handles the whole field for the CSV row as usual.

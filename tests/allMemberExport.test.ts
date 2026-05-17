@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { buildMemberCsv } from '../src/commands/allMemberExport';
+import { buildMemberCsv, sortMembers, filterMembersByWindow, exportFilename } from '../src/commands/allMemberExport';
+import type { TimeUnit } from '../src/commands/allMemberExport';
 
 async function test(name: string, fn: () => Promise<void> | void) {
   process.stdout.write(`  • ${name} ... `);
@@ -94,6 +95,74 @@ async function main() {
     }]);
     const lines = csv.split('\n');
     assert.equal(lines[1], 'eve,Eve,999,,"""Say """"Hi"""""""');
+  });
+  await test('exportFilename returns members-full.csv for full mode', () => {
+    assert.equal(exportFilename('full'), 'members-full.csv');
+  });
+
+  await test('exportFilename uses singular unit for amount=1 and plural for amount>1', () => {
+    assert.equal(exportFilename('filtered', 'week', 1), 'members-last-1-week.csv');
+    assert.equal(exportFilename('filtered', 'week', 3), 'members-last-3-weeks.csv');
+    assert.equal(exportFilename('filtered', 'hour', 1), 'members-last-1-hour.csv');
+    assert.equal(exportFilename('filtered', 'hour', 48), 'members-last-48-hours.csv');
+    assert.equal(exportFilename('filtered', 'day', 1), 'members-last-1-day.csv');
+    assert.equal(exportFilename('filtered', 'month', 2), 'members-last-2-months.csv');
+  });
+
+  await test('filterMembersByWindow includes member exactly on cutoff boundary', () => {
+    const now = new Date('2025-06-15T12:00:00Z');
+    const exactCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // exactly 1 week ago
+    const members = [
+      { username: 'boundary', displayName: 'B', userId: '1', joinedAt: exactCutoff, roles: [] },
+      { username: 'before', displayName: 'Before', userId: '2', joinedAt: new Date(exactCutoff.getTime() - 1), roles: [] },
+    ];
+    const filtered = filterMembersByWindow(members, 'week', 1, now);
+    assert.equal(filtered.length, 1);
+    assert.equal(filtered[0].username, 'boundary');
+  });
+
+  await test('filterMembersByWindow excludes null joinedAt members', () => {
+    const now = new Date('2025-06-15T12:00:00Z');
+    const members = [
+      { username: 'recent', displayName: 'R', userId: '1', joinedAt: new Date('2025-06-14T00:00:00Z'), roles: [] },
+      { username: 'unknown', displayName: 'U', userId: '2', joinedAt: null, roles: [] },
+    ];
+    const filtered = filterMembersByWindow(members, 'month', 1, now);
+    assert.equal(filtered.length, 1);
+    assert.equal(filtered[0].username, 'recent');
+  });
+
+  await test('filterMembersByWindow includes members inside window and excludes those outside', () => {
+    const now = new Date('2025-06-15T12:00:00Z');
+    const members = [
+      { username: 'recent', displayName: 'R', userId: '1', joinedAt: new Date('2025-06-14T00:00:00Z'), roles: [] },
+      { username: 'old', displayName: 'O', userId: '2', joinedAt: new Date('2025-01-01T00:00:00Z'), roles: [] },
+    ];
+    const filtered = filterMembersByWindow(members, 'week', 1, now);
+    assert.equal(filtered.length, 1);
+    assert.equal(filtered[0].username, 'recent');
+  });
+
+  await test('sortMembers puts null joinedAt members after all dated members', () => {
+    const members = [
+      { username: 'unknown1', displayName: 'U1', userId: '1', joinedAt: null, roles: [] },
+      { username: 'known', displayName: 'K', userId: '2', joinedAt: new Date('2025-03-01T00:00:00Z'), roles: [] },
+      { username: 'unknown2', displayName: 'U2', userId: '3', joinedAt: null, roles: [] },
+    ];
+    const sorted = sortMembers(members);
+    assert.equal(sorted[0].username, 'known');
+    assert.equal(sorted[1].joinedAt, null);
+    assert.equal(sorted[2].joinedAt, null);
+  });
+
+  await test('sortMembers sorts dated members ascending by joinedAt', () => {
+    const members = [
+      { username: 'late', displayName: 'Late', userId: '2', joinedAt: new Date('2025-06-01T00:00:00Z'), roles: [] },
+      { username: 'early', displayName: 'Early', userId: '1', joinedAt: new Date('2025-01-01T00:00:00Z'), roles: [] },
+      { username: 'mid', displayName: 'Mid', userId: '3', joinedAt: new Date('2025-03-15T00:00:00Z'), roles: [] },
+    ];
+    const sorted = sortMembers(members);
+    assert.deepEqual(sorted.map(m => m.username), ['early', 'mid', 'late']);
   });
 }
 

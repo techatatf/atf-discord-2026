@@ -24,6 +24,42 @@ function formatRoles(roles: string[]): string {
     .join(';');
 }
 
+export type TimeUnit = 'hour' | 'day' | 'week' | 'month';
+
+const UNIT_MS: Record<TimeUnit, number> = {
+  hour: 60 * 60 * 1000,
+  day: 24 * 60 * 60 * 1000,
+  week: 7 * 24 * 60 * 60 * 1000,
+  month: 30 * 24 * 60 * 60 * 1000,
+};
+
+export function exportFilename(mode: 'full'): string;
+export function exportFilename(mode: 'filtered', unit: TimeUnit, amount: number): string;
+export function exportFilename(mode: 'full' | 'filtered', unit?: TimeUnit, amount?: number): string {
+  if (mode === 'full') return 'members-full.csv';
+  const plural = amount! > 1 ? `${unit!}s` : unit!;
+  return `members-last-${amount!}-${plural}.csv`;
+}
+
+export function filterMembersByWindow(
+  members: MemberRecord[],
+  unit: TimeUnit,
+  amount: number,
+  now: Date = new Date(),
+): MemberRecord[] {
+  const cutoff = new Date(now.getTime() - amount * UNIT_MS[unit]);
+  return members.filter(m => m.joinedAt !== null && m.joinedAt >= cutoff);
+}
+
+export function sortMembers(members: MemberRecord[]): MemberRecord[] {
+  return [...members].sort((a, b) => {
+    if (a.joinedAt === null && b.joinedAt === null) return 0;
+    if (a.joinedAt === null) return 1;
+    if (b.joinedAt === null) return -1;
+    return a.joinedAt.getTime() - b.joinedAt.getTime();
+  });
+}
+
 export function buildMemberCsv(members: MemberRecord[]): string {
   const lines = [HEADER];
   for (const m of members) {
@@ -42,7 +78,30 @@ export function buildMemberCsv(members: MemberRecord[]): string {
 
 export const data = new SlashCommandBuilder()
   .setName('all-member-export')
-  .setDescription('Export all server members as a CSV file');
+  .setDescription('Export all server members as a CSV file')
+  .addSubcommand(sub =>
+    sub.setName('full').setDescription('Export all non-bot members sorted by join date'),
+  )
+  .addSubcommand(sub =>
+    sub
+      .setName('filtered')
+      .setDescription('Export members who joined within a recent time window')
+      .addStringOption(opt =>
+        opt
+          .setName('unit')
+          .setDescription('Time unit')
+          .setRequired(true)
+          .addChoices(
+            { name: 'hour', value: 'hour' },
+            { name: 'day', value: 'day' },
+            { name: 'week', value: 'week' },
+            { name: 'month', value: 'month' },
+          ),
+      )
+      .addIntegerOption(opt =>
+        opt.setName('amount').setDescription('Number of units (default: 1)').setMinValue(1),
+      ),
+  );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const denied = checkInvitePermissions(interaction);
@@ -67,7 +126,23 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         .map(r => r.name),
     }));
 
-  const csv = buildMemberCsv(members);
-  const attachment = new AttachmentBuilder(Buffer.from(csv, 'utf-8'), { name: 'members.csv' });
+  const sorted = sortMembers(members);
+  const subcommand = interaction.options.getSubcommand();
+
+  let result: MemberRecord[];
+  let filename: string;
+
+  if (subcommand === 'filtered') {
+    const unit = interaction.options.getString('unit', true) as TimeUnit;
+    const amount = interaction.options.getInteger('amount') ?? 1;
+    result = filterMembersByWindow(sorted, unit, amount);
+    filename = exportFilename('filtered', unit, amount);
+  } else {
+    result = sorted;
+    filename = exportFilename('full');
+  }
+
+  const csv = buildMemberCsv(result);
+  const attachment = new AttachmentBuilder(Buffer.from(csv, 'utf-8'), { name: filename });
   await interaction.editReply({ files: [attachment] });
 }

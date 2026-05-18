@@ -6,6 +6,14 @@ export async function onGuildMemberAdd(member: GuildMember): Promise<void> {
   if (member.user.bot) return;
 
   const code = await detectUsedInvite(member.guild);
+
+  try {
+    const joinedAt = member.joinedAt?.toISOString() ?? new Date().toISOString();
+    queries.insertMemberJoin.run([member.user.id, code, joinedAt]);
+  } catch (err) {
+    console.error(`[guildMemberAdd] Failed to record member join for ${member.user.tag}:`, err);
+  }
+
   if (!code) {
     console.log(`[guildMemberAdd] Could not determine invite used by ${member.user.tag}.`);
     return;

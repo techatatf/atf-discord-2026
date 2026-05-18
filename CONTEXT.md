@@ -46,12 +46,19 @@ The number of additional invites that can be created on the server. Discord nomi
 **Nominal Limit**:
 Discord's approximate invite ceiling (~1000). Not a hard cap — can be exceeded due to race conditions during rapid creation.
 
+### Tracking
+
+**Member Join**:
+A recorded event capturing that a member joined the server. Stores the member's Discord ID, the detected invite code (or null if detection failed), and the join timestamp. Forward-only — no backfill for members who joined before tracking was enabled. Append-only — rejoins create new records rather than updating existing ones.
+_Avoid_: Join event, join record
+
 ## Relationships
 
 - A **Request** produces one or more **Invites** (one for single mode, many for bulk mode)
 - Each **Invite** has exactly one **Role Assignment**
 - A **Live Invite** transitions to **Dead Invite** when it expires or reaches max uses
 - A **Dead Invite** can be cleaned up (deleted from Discord) to reclaim **Invite Capacity**
+- A **Member Join** references an **Invite Code** (or null if detection failed) — no foreign key; the invite may be non-tracked or unknown
 
 ## Example dialogue
 

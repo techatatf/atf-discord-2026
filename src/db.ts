@@ -25,6 +25,15 @@ db.exec(`
     request_id TEXT NOT NULL,
     created_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS member_joins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    member_id TEXT NOT NULL,
+    invite_code TEXT,
+    joined_at TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_member_joins_member_id ON member_joins(member_id);
 `);
 
 export type InviteMode = 'single' | 'bulk';
@@ -67,6 +76,10 @@ export const queries = {
   `),
 
   getAllInviteRoleAssignments: db.prepare('SELECT * FROM invite_role_assignments'),
+
+  insertMemberJoin: db.prepare(
+    'INSERT INTO member_joins (member_id, invite_code, joined_at) VALUES (?, ?, ?)'
+  ),
 };
 
 function shutdown() {

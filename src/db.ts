@@ -80,6 +80,17 @@ export const queries = {
   insertMemberJoin: db.prepare(
     'INSERT INTO member_joins (member_id, invite_code, joined_at) VALUES (?, ?, ?)'
   ),
+
+  getLatestJoinsWithMetadata: db.prepare(`
+    SELECT mj.member_id, mj.invite_code, ira.role_id, ira.request_id,
+           ir.requested_by_username, ir.reason
+    FROM member_joins mj
+    INNER JOIN (
+      SELECT member_id, MAX(id) AS max_id FROM member_joins GROUP BY member_id
+    ) latest ON mj.id = latest.max_id
+    LEFT JOIN invite_role_assignments ira ON mj.invite_code = ira.invite_code
+    LEFT JOIN invite_requests ir ON ira.request_id = ir.request_id
+  `),
 };
 
 function shutdown() {

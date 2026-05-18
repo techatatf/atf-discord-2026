@@ -7,9 +7,13 @@ export interface MemberRecord {
   userId: string;
   joinedAt: Date | null;
   roles: string[];
+  inviteCode?: string;
+  inviteRole?: string;
+  requestedBy?: string;
+  reason?: string;
 }
 
-const HEADER = 'username,displayName,userId,joinedAt,roles';
+const HEADER = 'username,displayName,userId,joinedAt,roles,inviteCode,inviteRole,requestedBy,reason';
 
 function escapeCsvField(value: string): string {
   if (value.includes(',') || value.includes('"') || value.includes('\n')) {
@@ -22,6 +26,37 @@ function formatRoles(roles: string[]): string {
   return roles
     .map(r => (r.includes(';') || r.includes('"')) ? `"${r.replace(/"/g, '""')}"` : r)
     .join(';');
+}
+
+export interface LatestJoinRow {
+  member_id: string;
+  invite_code: string | null;
+  role_id: string | null;
+  request_id: string | null;
+  requested_by_username: string | null;
+  reason: string | null;
+}
+
+export function enrichMembersWithInviteMetadata(
+  members: MemberRecord[],
+  joinMetadata: LatestJoinRow[],
+  roleNames: Map<string, string>,
+): MemberRecord[] {
+  const byMember = new Map<string, LatestJoinRow>();
+  for (const row of joinMetadata) {
+    byMember.set(row.member_id, row);
+  }
+  return members.map(m => {
+    const join = byMember.get(m.userId);
+    if (!join || !join.invite_code) return m;
+    return {
+      ...m,
+      inviteCode: join.invite_code,
+      inviteRole: join.role_id ? (roleNames.get(join.role_id) ?? join.role_id) : undefined,
+      requestedBy: join.requested_by_username ?? undefined,
+      reason: join.reason ?? undefined,
+    };
+  });
 }
 
 export type TimeUnit = 'hour' | 'day' | 'week' | 'month';
@@ -71,6 +106,10 @@ export function buildMemberCsv(members: MemberRecord[]): string {
       m.userId,
       joinedAt,
       escapeCsvField(roles),
+      escapeCsvField(m.inviteCode ?? ''),
+      escapeCsvField(m.inviteRole ?? ''),
+      escapeCsvField(m.requestedBy ?? ''),
+      escapeCsvField(m.reason ?? ''),
     ].join(','));
   }
   return lines.join('\n');
@@ -126,7 +165,12 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         .map(r => r.name),
     }));
 
-  const sorted = sortMembers(members);
+  const { queries } = require('../db') as typeof import('../db');
+  const roleNames = new Map(guild.roles.cache.map(r => [r.id, r.name]));
+  const joinMetadata = queries.getLatestJoinsWithMetadata.all() as LatestJoinRow[];
+  const enriched = enrichMembersWithInviteMetadata(members, joinMetadata, roleNames);
+
+  const sorted = sortMembers(enriched);
   const subcommand = interaction.options.getSubcommand();
 
   let result: MemberRecord[];

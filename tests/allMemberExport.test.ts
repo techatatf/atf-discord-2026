@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { buildMemberCsv, sortMembers, filterMembersByWindow, exportFilename } from '../src/commands/allMemberExport';
-import type { TimeUnit } from '../src/commands/allMemberExport';
+import { buildMemberCsv, sortMembers, filterMembersByWindow, exportFilename, enrichMembersWithInviteMetadata } from '../src/commands/allMemberExport';
+import type { TimeUnit, LatestJoinRow } from '../src/commands/allMemberExport';
 
 async function test(name: string, fn: () => Promise<void> | void) {
   process.stdout.write(`  • ${name} ... `);
@@ -19,7 +19,7 @@ async function main() {
 
   await test('empty members array produces header row only', () => {
     const csv = buildMemberCsv([]);
-    assert.equal(csv, 'username,displayName,userId,joinedAt,roles');
+    assert.equal(csv, 'username,displayName,userId,joinedAt,roles,inviteCode,inviteRole,requestedBy,reason');
   });
 
   await test('single member with all fields populated', () => {
@@ -32,7 +32,7 @@ async function main() {
     }]);
     const lines = csv.split('\n');
     assert.equal(lines.length, 2);
-    assert.equal(lines[1], 'alice,Alice A,123,2025-01-15T10:30:00.000Z,Mentor;Staff');
+    assert.equal(lines[1], 'alice,Alice A,123,2025-01-15T10:30:00.000Z,Mentor;Staff,,,,');
   });
 
   await test('null joinedAt produces empty string in that cell', () => {
@@ -44,7 +44,7 @@ async function main() {
       roles: [],
     }]);
     const lines = csv.split('\n');
-    assert.equal(lines[1], 'bob,Bob,456,,');
+    assert.equal(lines[1], 'bob,Bob,456,,,,,,');
   });
 
   await test('roles with semicolons are inner-quoted per the issue spec', () => {
@@ -58,7 +58,7 @@ async function main() {
     const lines = csv.split('\n');
     // Inner: Mentor;"Q;A Lead"  →  outer escapeCsvField wraps because of the quotes
     // The roles cell contains semicolons and quotes, so outer CSV escaping kicks in
-    assert.equal(lines[1], 'carol,Carol,789,,"Mentor;""Q;A Lead"""');
+    assert.equal(lines[1], 'carol,Carol,789,,"Mentor;""Q;A Lead""",,,,');
   });
 
   await test('display name with commas is CSV-escaped', () => {
@@ -70,7 +70,7 @@ async function main() {
       roles: [],
     }]);
     const lines = csv.split('\n');
-    assert.equal(lines[1], 'dave,"Dave, Jr.",101,,');
+    assert.equal(lines[1], 'dave,"Dave, Jr.",101,,,,,,');
   });
 
   await test('multiple members produce one row each', () => {
@@ -80,9 +80,9 @@ async function main() {
     ]);
     const lines = csv.split('\n');
     assert.equal(lines.length, 3);
-    assert.equal(lines[0], 'username,displayName,userId,joinedAt,roles');
-    assert.equal(lines[1], 'a,A,1,,');
-    assert.equal(lines[2], 'b,B,2,,Staff');
+    assert.equal(lines[0], 'username,displayName,userId,joinedAt,roles,inviteCode,inviteRole,requestedBy,reason');
+    assert.equal(lines[1], 'a,A,1,,,,,,');
+    assert.equal(lines[2], 'b,B,2,,Staff,,,,');
   });
 
   await test('role name with internal quotes gets doubled quotes in inner escaping', () => {
@@ -94,7 +94,7 @@ async function main() {
       roles: ['Say "Hi"'],
     }]);
     const lines = csv.split('\n');
-    assert.equal(lines[1], 'eve,Eve,999,,"""Say """"Hi"""""""');
+    assert.equal(lines[1], 'eve,Eve,999,,"""Say """"Hi""""""",,,,');
   });
   await test('exportFilename returns members-full.csv for full mode', () => {
     assert.equal(exportFilename('full'), 'members-full.csv');
@@ -153,6 +153,140 @@ async function main() {
     assert.equal(sorted[0].username, 'known');
     assert.equal(sorted[1].joinedAt, null);
     assert.equal(sorted[2].joinedAt, null);
+  });
+
+  await test('member with partial metadata has empty cells for missing fields', () => {
+    const csv = buildMemberCsv([{
+      username: 'bob',
+      displayName: 'Bob',
+      userId: '456',
+      joinedAt: new Date('2025-02-01T00:00:00.000Z'),
+      roles: ['Mentor'],
+      inviteCode: 'xyz789',
+    }]);
+    const lines = csv.split('\n');
+    assert.equal(lines[1], 'bob,Bob,456,2025-02-01T00:00:00.000Z,Mentor,xyz789,,,');
+  });
+
+  await test('reason with commas and quotes is CSV-escaped', () => {
+    const csv = buildMemberCsv([{
+      username: 'carol',
+      displayName: 'Carol',
+      userId: '789',
+      joinedAt: null,
+      roles: [],
+      inviteCode: 'inv1',
+      inviteRole: 'Student',
+      requestedBy: 'admin',
+      reason: 'Event "Summer, 2025"',
+    }]);
+    const lines = csv.split('\n');
+    assert.equal(lines[1], 'carol,Carol,789,,,inv1,Student,admin,"Event ""Summer, 2025"""');
+  });
+
+  await test('member with full invite metadata includes all nine columns', () => {
+    const csv = buildMemberCsv([{
+      username: 'alice',
+      displayName: 'Alice A',
+      userId: '123',
+      joinedAt: new Date('2025-01-15T10:30:00.000Z'),
+      roles: ['Student'],
+      inviteCode: 'abc123',
+      inviteRole: 'Student',
+      requestedBy: 'staff_user',
+      reason: 'Summer 2025 cohort',
+    }]);
+    const lines = csv.split('\n');
+    assert.equal(lines.length, 2);
+    assert.equal(lines[0], 'username,displayName,userId,joinedAt,roles,inviteCode,inviteRole,requestedBy,reason');
+    assert.equal(lines[1], 'alice,Alice A,123,2025-01-15T10:30:00.000Z,Student,abc123,Student,staff_user,Summer 2025 cohort');
+  });
+
+  console.log('\nenrichMembersWithInviteMetadata');
+
+  await test('fully tracked member gets all four metadata fields', () => {
+    const members: Parameters<typeof enrichMembersWithInviteMetadata>[0] = [
+      { username: 'alice', displayName: 'Alice', userId: '100', joinedAt: new Date(), roles: ['Student'] },
+    ];
+    const joinMetadata: LatestJoinRow[] = [{
+      member_id: '100',
+      invite_code: 'abc',
+      role_id: '9001',
+      request_id: 'req-1',
+      requested_by_username: 'staff_user',
+      reason: 'Summer cohort',
+    }];
+    const roleNames = new Map([['9001', 'Student']]);
+    const enriched = enrichMembersWithInviteMetadata(members, joinMetadata, roleNames);
+    assert.equal(enriched[0].inviteCode, 'abc');
+    assert.equal(enriched[0].inviteRole, 'Student');
+    assert.equal(enriched[0].requestedBy, 'staff_user');
+    assert.equal(enriched[0].reason, 'Summer cohort');
+  });
+
+  await test('member with no join record has all metadata undefined', () => {
+    const members = [
+      { username: 'ghost', displayName: 'Ghost', userId: '999', joinedAt: null, roles: [] },
+    ];
+    const enriched = enrichMembersWithInviteMetadata(members, [], new Map());
+    assert.equal(enriched[0].inviteCode, undefined);
+    assert.equal(enriched[0].inviteRole, undefined);
+    assert.equal(enriched[0].requestedBy, undefined);
+    assert.equal(enriched[0].reason, undefined);
+  });
+
+  await test('null invite code leaves all metadata undefined', () => {
+    const members = [
+      { username: 'bob', displayName: 'Bob', userId: '200', joinedAt: new Date(), roles: [] },
+    ];
+    const joinMetadata: LatestJoinRow[] = [{
+      member_id: '200',
+      invite_code: null,
+      role_id: null,
+      request_id: null,
+      requested_by_username: null,
+      reason: null,
+    }];
+    const enriched = enrichMembersWithInviteMetadata(members, joinMetadata, new Map());
+    assert.equal(enriched[0].inviteCode, undefined);
+    assert.equal(enriched[0].inviteRole, undefined);
+    assert.equal(enriched[0].requestedBy, undefined);
+    assert.equal(enriched[0].reason, undefined);
+  });
+
+  await test('untracked invite populates inviteCode but not role/request fields', () => {
+    const members = [
+      { username: 'dave', displayName: 'Dave', userId: '300', joinedAt: new Date(), roles: [] },
+    ];
+    const joinMetadata: LatestJoinRow[] = [{
+      member_id: '300',
+      invite_code: 'external-inv',
+      role_id: null,
+      request_id: null,
+      requested_by_username: null,
+      reason: null,
+    }];
+    const enriched = enrichMembersWithInviteMetadata(members, joinMetadata, new Map());
+    assert.equal(enriched[0].inviteCode, 'external-inv');
+    assert.equal(enriched[0].inviteRole, undefined);
+    assert.equal(enriched[0].requestedBy, undefined);
+    assert.equal(enriched[0].reason, undefined);
+  });
+
+  await test('missing role in map falls back to raw role ID', () => {
+    const members = [
+      { username: 'eve', displayName: 'Eve', userId: '400', joinedAt: new Date(), roles: [] },
+    ];
+    const joinMetadata: LatestJoinRow[] = [{
+      member_id: '400',
+      invite_code: 'inv2',
+      role_id: '8888',
+      request_id: 'req-2',
+      requested_by_username: 'admin',
+      reason: null,
+    }];
+    const enriched = enrichMembersWithInviteMetadata(members, joinMetadata, new Map());
+    assert.equal(enriched[0].inviteRole, '8888');
   });
 
   await test('sortMembers sorts dated members ascending by joinedAt', () => {

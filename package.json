@@ -7,7 +7,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "test": "ts-node --transpile-only tests/bulkInvite.test.ts"
+    "test": "ts-node --transpile-only tests/bulkInvite.test.ts && ts-node --transpile-only tests/lifecycle.test.ts && ts-node --transpile-only tests/inviteCleanup.test.ts && ts-node --transpile-only tests/inviteCapacityDisplay.test.ts && ts-node --transpile-only tests/bulkLock.test.ts && ts-node --transpile-only tests/allMemberExport.test.ts && ts-node --transpile-only tests/memberJoin.test.ts",
+    "diagnose:invites": "ts-node scripts/diagnose-invite-sync.ts"
   },
   "dependencies": {
     "discord.js": "^14.14.1",

@@ -1,3 +1,4 @@
+import './logger';
 import { Client, GatewayIntentBits } from 'discord.js';
 import { config } from './config';
 import { onGuildMemberAdd } from './events/guildMemberAdd';

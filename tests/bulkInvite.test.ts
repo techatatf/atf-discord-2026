@@ -6,7 +6,7 @@ import { InviteCreator, runBulkInviteLoop } from '../src/invite/bulk';
 
 const FIXTURES = path.join(__dirname, 'fixtures');
 
-function makeFakeChannel(opts: { failIndex?: number; delayMs?: number } = {}): InviteCreator & { callCount: number } {
+function makeFakeChannel(opts: { failIndex?: number; delayMs?: number; failAfter?: number; failMessage?: string } = {}): InviteCreator & { callCount: number } {
   let counter = 0;
   return {
     callCount: 0,
@@ -15,7 +15,11 @@ function makeFakeChannel(opts: { failIndex?: number; delayMs?: number } = {}): I
       if (opts.delayMs) await new Promise(r => setTimeout(r, opts.delayMs));
       if (opts.failIndex !== undefined && counter === opts.failIndex) {
         counter++;
-        throw new Error('simulated failure');
+        throw new Error(opts.failMessage ?? 'simulated failure');
+      }
+      if (opts.failAfter !== undefined && counter >= opts.failAfter) {
+        counter++;
+        throw new Error(opts.failMessage ?? 'simulated failure');
       }
       const code = `CODE${counter++}`;
       return { code, url: `https://discord.gg/${code}` };
@@ -198,6 +202,223 @@ async function main() {
     assert.equal(result.created, 100);
     assert.equal(result.roleAssignments.length, 100);
     assert.ok(elapsed < 5_000, `100 rows with 2ms delay should finish under 5s, took ${elapsed}ms`);
+  });
+
+  console.log('runBulkInviteLoop — circuit breaker & first error');
+
+  await test('stops after 3 consecutive errors and returns stoppedReason', async () => {
+    // 10 rows, all fail from the start
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    for (let i = 0; i < 10; i++) csvLines.push(`reason ${i},1,7,student,`);
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel({ failAfter: 0, failMessage: 'Maximum number of invites reached' });
+
+    const result = await runBulkInviteLoop(channel, rows);
+    assert.equal(result.stoppedReason, 'consecutive-errors');
+    assert.equal(result.failed, 3);
+    assert.equal(result.created, 0);
+    assert.equal(channel.callCount, 3); // stopped after 3, didn't try all 10
+  });
+
+  await test('consecutive error counter resets on success', async () => {
+    // 10 rows: rows 0,1 succeed, row 2 fails, row 3 succeeds, rows 4,5 fail, row 6 succeeds, rows 7,8,9 fail → stops
+    let callIdx = 0;
+    const failPattern = [false, false, true, false, true, true, false, true, true, true];
+    const channel: InviteCreator & { callCount: number } = {
+      callCount: 0,
+      async createInvite() {
+        this.callCount++;
+        const shouldFail = failPattern[callIdx++];
+        if (shouldFail) throw new Error('intermittent error');
+        return { code: `CODE${callIdx}`, url: `https://discord.gg/CODE${callIdx}` };
+      },
+    };
+
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    for (let i = 0; i < 10; i++) csvLines.push(`reason ${i},1,7,student,`);
+    const { rows } = parseCsv(csvLines.join('\n'));
+
+    const result = await runBulkInviteLoop(channel, rows);
+    assert.equal(result.stoppedReason, 'consecutive-errors');
+    // Processed rows 0-9: 0=ok, 1=ok, 2=fail, 3=ok, 4=fail, 5=fail, 6=ok, 7=fail, 8=fail, 9=fail → stopped at row 9
+    assert.equal(result.created, 4);
+    assert.equal(result.failed, 6);
+    assert.equal(channel.callCount, 10);
+  });
+
+  await test('captures first error with row number and message', async () => {
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    for (let i = 0; i < 5; i++) csvLines.push(`reason ${i},1,7,student,`);
+    const { rows } = parseCsv(csvLines.join('\n'));
+    // Fail on index 2 (row 3 in 1-based)
+    const channel = makeFakeChannel({ failIndex: 2, failMessage: 'Rate limited' });
+
+    const result = await runBulkInviteLoop(channel, rows);
+    assert.equal(result.firstError?.row, 3);
+    assert.equal(result.firstError?.message, 'Rate limited');
+    assert.equal(result.stoppedReason, null); // only 1 failure, no circuit break
+  });
+
+  await test('firstError is null when no errors occur', async () => {
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    for (let i = 0; i < 3; i++) csvLines.push(`reason ${i},1,7,student,`);
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel();
+
+    const result = await runBulkInviteLoop(channel, rows);
+    assert.equal(result.firstError, null);
+    assert.equal(result.stoppedReason, null);
+  });
+
+  await test('circuit breaker with custom limit', async () => {
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    for (let i = 0; i < 10; i++) csvLines.push(`reason ${i},1,7,student,`);
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel({ failAfter: 0 });
+
+    // With limit of 5 instead of default 3
+    const result = await runBulkInviteLoop(channel, rows, undefined, { consecutiveErrorLimit: 5 });
+    assert.equal(result.stoppedReason, 'consecutive-errors');
+    assert.equal(result.failed, 5);
+    assert.equal(channel.callCount, 5);
+  });
+
+  console.log('runBulkInviteLoop — cancellation (shouldCancel)');
+
+  await test('stops when shouldCancel returns true and returns stoppedReason cancelled', async () => {
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    for (let i = 0; i < 10; i++) csvLines.push(`reason ${i},1,7,student,`);
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel();
+
+    let cancelAfter = 3;
+    let callCount = 0;
+    const shouldCancel = () => {
+      callCount++;
+      return callCount > cancelAfter;
+    };
+
+    const result = await runBulkInviteLoop(channel, rows, undefined, { shouldCancel });
+    assert.equal(result.stoppedReason, 'cancelled');
+    assert.equal(result.created, 3); // processed 3 rows, then cancelled before row 4
+    assert.equal(channel.callCount, 3);
+  });
+
+  await test('shouldCancel is checked before each row, not after', async () => {
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    for (let i = 0; i < 5; i++) csvLines.push(`reason ${i},1,7,student,`);
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel();
+
+    // Cancel immediately — should process 0 rows
+    const result = await runBulkInviteLoop(channel, rows, undefined, { shouldCancel: () => true });
+    assert.equal(result.stoppedReason, 'cancelled');
+    assert.equal(result.created, 0);
+    assert.equal(channel.callCount, 0);
+  });
+
+  await test('cancellation preserves already-created invites in results', async () => {
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    for (let i = 0; i < 10; i++) csvLines.push(`reason ${i},1,7,student,`);
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel();
+
+    // shouldCancel is checked at the TOP of each iteration, BEFORE onProgress and create.
+    // Use a simple counter: cancel after 5 calls to shouldCancel (i.e. before processing row 5).
+    let checkCount = 0;
+    const shouldCancel = () => ++checkCount > 5;
+
+    const result = await runBulkInviteLoop(channel, rows, undefined, { shouldCancel });
+    assert.equal(result.stoppedReason, 'cancelled');
+    // shouldCancel returns false for checks 1-5 (rows 0-4), true on check 6 (row 5) → 5 created
+    assert.equal(result.created, 5);
+    assert.equal(result.roleAssignments.length, 5);
+    // Links for created rows should be set, remaining should not exist
+    for (let i = 0; i < 5; i++) {
+      assert.ok(result.links[i]?.startsWith('https://discord.gg/'), `expected link at index ${i}`);
+    }
+  });
+
+  console.log('runBulkInviteLoop — onInviteCreated callback');
+
+  await test('calls onInviteCreated for each successful invite with code and role', async () => {
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    csvLines.push('r1,1,7,student,');
+    csvLines.push('r2,1,7,mentor,');
+    csvLines.push('r3,1,7,student,');
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel();
+
+    const invitesCreated: { code: string; role: string }[] = [];
+    const result = await runBulkInviteLoop(channel, rows, undefined, {
+      onInviteCreated: (code, role) => invitesCreated.push({ code, role }),
+    });
+
+    assert.equal(invitesCreated.length, 3);
+    assert.equal(invitesCreated[0].code, 'CODE0');
+    assert.equal(invitesCreated[0].role, 'student');
+    assert.equal(invitesCreated[1].code, 'CODE1');
+    assert.equal(invitesCreated[1].role, 'mentor');
+    assert.equal(invitesCreated[2].code, 'CODE2');
+    assert.equal(invitesCreated[2].role, 'student');
+    assert.equal(result.roleAssignments.length, 3);
+  });
+
+  await test('does not call onInviteCreated for skipped rows', async () => {
+    const csv = 'reason,max-uses,max-age,role,invite-link\nTest,1,7,student,https://discord.gg/EXISTING';
+    const { rows } = parseCsv(csv);
+    const channel = makeFakeChannel();
+
+    const invitesCreated: { code: string; role: string }[] = [];
+    await runBulkInviteLoop(channel, rows, undefined, {
+      onInviteCreated: (code, role) => invitesCreated.push({ code, role }),
+    });
+
+    assert.equal(invitesCreated.length, 0);
+  });
+
+  await test('does not call onInviteCreated for failed rows', async () => {
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    csvLines.push('r1,1,7,student,');
+    csvLines.push('r2,1,7,mentor,');
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel({ failIndex: 0 });
+
+    const invitesCreated: { code: string; role: string }[] = [];
+    await runBulkInviteLoop(channel, rows, undefined, {
+      onInviteCreated: (code, role) => invitesCreated.push({ code, role }),
+    });
+
+    // Only 1 invite created (index 1 succeeds, index 0 failed)
+    assert.equal(invitesCreated.length, 1);
+    assert.equal(invitesCreated[0].role, 'mentor');
+  });
+
+  await test('onInviteCreated is called before pushing to roleAssignments (inline)', async () => {
+    // Verify callback is called with correct code immediately after creation
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    csvLines.push('r1,1,7,student,');
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel();
+
+    let callbackCode: string | null = null;
+    await runBulkInviteLoop(channel, rows, undefined, {
+      onInviteCreated: (code, _role) => { callbackCode = code; },
+    });
+
+    assert.equal(callbackCode, 'CODE0');
+  });
+
+  await test('existing tests pass without onInviteCreated (optional)', async () => {
+    const csvLines = ['reason,max-uses,max-age,role,invite-link'];
+    csvLines.push('r1,1,7,student,');
+    const { rows } = parseCsv(csvLines.join('\n'));
+    const channel = makeFakeChannel();
+
+    // No onInviteCreated — should still work fine
+    const result = await runBulkInviteLoop(channel, rows);
+    assert.equal(result.created, 1);
+    assert.equal(result.roleAssignments.length, 1);
   });
 
   console.log('buildOutputCsv');

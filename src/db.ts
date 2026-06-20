@@ -25,6 +25,15 @@ db.exec(`
     request_id TEXT NOT NULL,
     created_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS member_joins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    member_id TEXT NOT NULL,
+    invite_code TEXT,
+    joined_at TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_member_joins_member_id ON member_joins(member_id);
 `);
 
 export type InviteMode = 'single' | 'bulk';
@@ -64,6 +73,23 @@ export const queries = {
   insertInviteRoleAssignment: db.prepare(`
     INSERT INTO invite_role_assignments (invite_code, role_id, request_id, created_at)
     VALUES (?, ?, ?, ?)
+  `),
+
+  getAllInviteRoleAssignments: db.prepare('SELECT * FROM invite_role_assignments'),
+
+  insertMemberJoin: db.prepare(
+    'INSERT INTO member_joins (member_id, invite_code, joined_at) VALUES (?, ?, ?)'
+  ),
+
+  getLatestJoinsWithMetadata: db.prepare(`
+    SELECT mj.member_id, mj.invite_code, ira.role_id, ira.request_id,
+           ir.requested_by_username, ir.reason
+    FROM member_joins mj
+    INNER JOIN (
+      SELECT member_id, MAX(id) AS max_id FROM member_joins GROUP BY member_id
+    ) latest ON mj.id = latest.max_id
+    LEFT JOIN invite_role_assignments ira ON mj.invite_code = ira.invite_code
+    LEFT JOIN invite_requests ir ON ira.request_id = ir.request_id
   `),
 };
 

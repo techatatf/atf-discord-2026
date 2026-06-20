@@ -85,11 +85,18 @@ export async function createSingleInvite(
     throw new Error('The configured rules channel does not support invite creation.');
   }
 
-  const invite = await (channel as any).createInvite({
-    maxUses,
-    maxAge: maxAgeSeconds,
-    unique: true,
-  });
+  let invite;
+  try {
+    invite = await (channel as any).createInvite({
+      maxUses,
+      maxAge: maxAgeSeconds,
+      unique: true,
+    });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error(`[createSingleInvite] Failed to create invite — reason: "${params.reason}", maxUses: ${maxUses}, maxAge: ${maxAgeDays}d, role: ${params.role}, requester: ${requester.username} — error: ${errMsg}`);
+    throw err;
+  }
 
   const requestId = generateRequestId();
 

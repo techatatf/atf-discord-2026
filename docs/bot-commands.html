@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ATF Discord Bot Commands</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --surface: #ffffff;
+      --surface-muted: #eef2f6;
+      --text: #17202a;
+      --muted: #5c6672;
+      --line: #d8dee6;
+      --accent: #1f6feb;
+      --accent-strong: #174ea6;
+      --danger: #b42318;
+      --danger-bg: #fff0ed;
+      --ok: #176b4d;
+      --ok-bg: #eefbf4;
+      --code-bg: #111827;
+      --code-text: #f8fafc;
+      --shadow: 0 1px 2px rgba(20, 30, 45, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover,
+    a:focus {
+      color: var(--accent-strong);
+      text-decoration: underline;
+    }
+
+    .page {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 22px 14px 40px;
+    }
+
+    header {
+      padding: 24px 0 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--accent-strong);
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.18;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      max-width: 760px;
+      font-size: 2rem;
+    }
+
+    h2 {
+      margin-top: 44px;
+      padding-top: 8px;
+      font-size: 1.65rem;
+    }
+
+    h3 {
+      margin-top: 26px;
+      font-size: 1.12rem;
+    }
+
+    p {
+      margin: 10px 0;
+    }
+
+    .lede {
+      max-width: 800px;
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 24px 0 0;
+    }
+
+    nav a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 36px;
+      padding: 7px 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      font-size: 0.94rem;
+      box-shadow: var(--shadow);
+    }
+
+    main {
+      display: grid;
+      gap: 4px;
+    }
+
+    section {
+      min-width: 0;
+    }
+
+    .panel {
+      margin-top: 14px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .note {
+      border-left: 4px solid var(--accent);
+      background: #edf5ff;
+    }
+
+    .warning {
+      border-left: 4px solid var(--danger);
+      background: var(--danger-bg);
+    }
+
+    .success {
+      border-left: 4px solid var(--ok);
+      background: var(--ok-bg);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    .command {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .command-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-muted);
+    }
+
+    .command-header h3 {
+      margin: 0;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 3px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .command-body {
+      padding: 18px;
+    }
+
+    .syntax {
+      margin: 12px 0;
+      padding: 12px 14px;
+      border-radius: 6px;
+      background: var(--code-bg);
+      color: var(--code-text);
+      overflow-x: auto;
+      white-space: pre;
+      font: 0.94rem/1.5 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    }
+
+    code {
+      padding: 0.12em 0.32em;
+      border-radius: 4px;
+      background: #e9eef5;
+      color: #101828;
+      font: 0.92em ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      color: inherit;
+      font-size: inherit;
+    }
+
+    ul,
+    ol {
+      margin: 10px 0 0 22px;
+      padding: 0;
+    }
+
+    li {
+      margin: 5px 0;
+    }
+
+    table {
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      border-collapse: collapse;
+      overflow-x: auto;
+      overflow-wrap: anywhere;
+      white-space: nowrap;
+    }
+
+    th,
+    td {
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--surface-muted);
+      font-weight: 700;
+    }
+
+    .compact td,
+    .compact th {
+      padding: 8px 10px;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .danger-text {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
+    .two-column-list {
+      columns: 1;
+      column-gap: 28px;
+    }
+
+    footer {
+      margin-top: 48px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    @media (min-width: 821px) {
+      .page {
+        padding: 32px 20px 56px;
+      }
+
+      h1 {
+        font-size: 3.25rem;
+      }
+
+      .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .command-header {
+        align-items: center;
+      }
+
+      .two-column-list {
+        columns: 2;
+      }
+
+      table {
+        display: table;
+        white-space: normal;
+      }
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+      }
+
+      nav {
+        display: none;
+      }
+
+      .page {
+        max-width: none;
+        padding: 0;
+      }
+
+      .panel,
+      .command {
+        box-shadow: none;
+        break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <p class="eyebrow">Staff guide</p>
+      <h1>ATF Discord Bot Commands</h1>
+      <p class="lede">
+        Use this guide to create tracked Invites, retrieve previous Requests, check Invite health,
+        clean up unused capacity, and export member data.
+      </p>
+      <nav aria-label="Page sections">
+        <a href="#access">Access</a>
+        <a href="#terms">Terms</a>
+        <a href="#command-index">Command index</a>
+        <a href="#create-invites">Create Invites</a>
+        <a href="#retrieve-requests">Retrieve Requests</a>
+        <a href="#health-capacity">Health and Capacity</a>
+        <a href="#cleanup">Cleanup</a>
+        <a href="#exports">Exports</a>
+      </nav>
+    </header>
+
+    <main>
+      <section id="access">
+        <h2>Access and Visibility</h2>
+        <div class="panel">
+          <ul>
+            <li>All commands are slash commands used in Discord.</li>
+            <li>Only staff with the configured Admin or Mod role can use these commands.</li>
+            <li>Commands may be restricted to designated bot channels.</li>
+            <li>Command replies are private to the staff user. Some commands also attach CSV files or send a DM receipt.</li>
+            <li>Invites created by the bot point to the configured rules channel.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="terms">
+        <h2>Terms Used in This Guide</h2>
+        <div class="grid">
+          <div class="panel">
+            <h3>Invite</h3>
+            <p>A Discord invite created or tracked by the bot. Prefer this term over "link" unless you are referring to the full URL.</p>
+          </div>
+          <div class="panel">
+            <h3>Invite Code</h3>
+            <p>The unique code inside a Discord invite URL, such as <code>abc123</code> in <code>https://discord.gg/abc123</code>.</p>
+          </div>
+          <div class="panel">
+            <h3>Request ID</h3>
+            <p>The human-readable ID recorded when staff create one or more Invites, such as <code>2026-04-30-abc</code>.</p>
+          </div>
+          <div class="panel">
+            <h3>Invite Role</h3>
+            <p>The role the bot auto-assigns when a member joins through a tracked Invite. Current values are <code>student</code> and <code>mentor</code>.</p>
+          </div>
+          <div class="panel">
+            <h3>Live Invite</h3>
+            <p>An Invite that can still be used. It is not expired and has not reached its maximum uses.</p>
+          </div>
+          <div class="panel">
+            <h3>Dead Invite</h3>
+            <p>An Invite that can no longer be used because it expired or reached its maximum uses.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="command-index">
+        <h2>Command Index</h2>
+        <table class="compact">
+          <thead>
+            <tr>
+              <th>Command</th>
+              <th>Use it to</th>
+              <th>Returns</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>/invite-create</code></td>
+              <td>Create one tracked Invite.</td>
+              <td>Invite URL, Request ID, and DM receipt.</td>
+            </tr>
+            <tr>
+              <td><code>/invite-create-bulk</code></td>
+              <td>Create many tracked Invites from a CSV.</td>
+              <td>Progress, summary, output CSV, and DM receipt.</td>
+            </tr>
+            <tr>
+              <td><code>/invite-get</code></td>
+              <td>Look up a previous Request by Request ID.</td>
+              <td>Request details or the bulk output CSV.</td>
+            </tr>
+            <tr>
+              <td><code>/invite-status</code></td>
+              <td>Check whether an Invite is active, expired, or fully used.</td>
+              <td>Status, usage, expiration, channel, and Invite Role if tracked.</td>
+            </tr>
+            <tr>
+              <td><code>/invite-capacity</code></td>
+              <td>See current server Invite capacity.</td>
+              <td>Total Invites, nominal limit, bot-created count, and available capacity.</td>
+            </tr>
+            <tr>
+              <td><code>/invite-cleanup</code></td>
+              <td>Delete selected Invites to free capacity.</td>
+              <td>Deletion count, capacity after cleanup, and any errors.</td>
+            </tr>
+            <tr>
+              <td><code>/all-member-export</code></td>
+              <td>Export non-bot server members as CSV.</td>
+              <td>CSV attachment.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="create-invites">
+        <h2>Create Invites</h2>
+
+        <article class="command">
+          <div class="command-header">
+            <h3><code>/invite-create</code></h3>
+            <span class="tag">Single Invite</span>
+          </div>
+          <div class="command-body">
+            <p>Use this when you need one tracked Invite for a person or group.</p>
+            <pre class="syntax"><code>/invite-create reason:&lt;text&gt; [max-uses:&lt;number&gt;] [max-age:&lt;days&gt;] [role:student|mentor]</code></pre>
+            <table>
+              <thead>
+                <tr>
+                  <th>Option</th>
+                  <th>Required</th>
+                  <th>Default</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>reason</code></td>
+                  <td>Yes</td>
+                  <td>None</td>
+                  <td>Cannot be empty. Use a clear reason staff can recognize later.</td>
+                </tr>
+                <tr>
+                  <td><code>max-uses</code></td>
+                  <td>No</td>
+                  <td><code>1</code></td>
+                  <td>Positive integer only.</td>
+                </tr>
+                <tr>
+                  <td><code>max-age</code></td>
+                  <td>No</td>
+                  <td><code>7</code> days</td>
+                  <td>Positive integer in days. <code>0</code> is not allowed.</td>
+                </tr>
+                <tr>
+                  <td><code>role</code></td>
+                  <td>No</td>
+                  <td><code>student</code></td>
+                  <td>Choose <code>student</code> or <code>mentor</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="panel success">
+              <p><strong>You receive:</strong> a private reply with the Invite URL, Request ID, reason, and Invite Role. The bot also sends you a DM receipt with the Request ID, reason, and Invite Role.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="command">
+          <div class="command-header">
+            <h3><code>/invite-create-bulk</code></h3>
+            <span class="tag">Bulk Invites</span>
+          </div>
+          <div class="command-body">
+            <p>Use this when you need many tracked Invites from a CSV file.</p>
+            <pre class="syntax"><code>/invite-create-bulk file:&lt;csv attachment&gt; [max-uses:&lt;default max uses&gt;]</code></pre>
+            <table>
+              <thead>
+                <tr>
+                  <th>Input</th>
+                  <th>Rule</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>File</td>
+                  <td>Must be a <code>.csv</code> attachment with a header row and at least one data row.</td>
+                </tr>
+                <tr>
+                  <td>Rows</td>
+                  <td>Maximum <code>1000</code> data rows. Split larger files before uploading.</td>
+                </tr>
+                <tr>
+                  <td><code>reason</code> column</td>
+                  <td>Required. New Invite rows must have a non-empty reason.</td>
+                </tr>
+                <tr>
+                  <td><code>max-uses</code> command option</td>
+                  <td>Optional default for rows without their own <code>max-uses</code>. Defaults to <code>50</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h3>CSV Columns</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Column</th>
+                  <th>Required</th>
+                  <th>Default</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>reason</code></td>
+                  <td>Yes</td>
+                  <td>None</td>
+                  <td>Why the Invite is being created.</td>
+                </tr>
+                <tr>
+                  <td><code>max-uses</code></td>
+                  <td>No</td>
+                  <td><code>50</code>, or the command option value</td>
+                  <td>Positive integer. Use <code>-1</code> to use the default when this column is present.</td>
+                </tr>
+                <tr>
+                  <td><code>max-age</code></td>
+                  <td>No</td>
+                  <td><code>7</code> days</td>
+                  <td>Positive integer in days. Use <code>-1</code> to use the default. <code>0</code> is not allowed.</td>
+                </tr>
+                <tr>
+                  <td><code>role</code></td>
+                  <td>No</td>
+                  <td><code>student</code></td>
+                  <td>Use <code>student</code> or <code>mentor</code>.</td>
+                </tr>
+                <tr>
+                  <td><code>invite-link</code></td>
+                  <td>No</td>
+                  <td>Blank</td>
+                  <td>If present, the row is skipped and the existing Invite URL is preserved in the output CSV.</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h3>Minimum CSV</h3>
+            <pre class="syntax"><code>reason
+Spring 2026 student cohort
+Guest speaker access</code></pre>
+
+            <h3>Full CSV</h3>
+            <pre class="syntax"><code>reason,max-uses,max-age,role,invite-link
+Spring 2026 student cohort,50,7,student,
+Mentor onboarding,10,14,mentor,
+Already sent invite,-1,-1,student,https://discord.gg/abc123</code></pre>
+
+            <div class="panel success">
+              <p><strong>You receive:</strong> progress updates, a final summary, an output CSV attachment, and a DM receipt. The output CSV includes generated Invite URLs and preserves existing Invite URLs.</p>
+            </div>
+            <div class="panel note">
+              <p>If the bot sees 3 consecutive Invite creation errors, it stops the bulk run and reports the first error. A Cancel button can stop the run after the current row finishes.</p>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section id="retrieve-requests">
+        <h2>Retrieve Previous Requests</h2>
+
+        <article class="command">
+          <div class="command-header">
+            <h3><code>/invite-get</code></h3>
+            <span class="tag">Lookup</span>
+          </div>
+          <div class="command-body">
+            <p>Use this when you have a Request ID and need to look up the original Invite Request.</p>
+            <pre class="syntax"><code>/invite-get request-id:&lt;request id&gt;</code></pre>
+            <ul>
+              <li>Single Requests return the Invite URL, reason, Invite Role, requester, and request time.</li>
+              <li>Bulk Requests return Request details and the bulk output CSV when it is available.</li>
+              <li>If no Request matches the ID, the bot tells you that no Invite Request was found.</li>
+            </ul>
+          </div>
+        </article>
+      </section>
+
+      <section id="health-capacity">
+        <h2>Check Health and Capacity</h2>
+
+        <article class="command">
+          <div class="command-header">
+            <h3><code>/invite-status</code></h3>
+            <span class="tag">Invite Health</span>
+          </div>
+          <div class="command-body">
+            <p>Use this when you need to know whether a specific Invite still works.</p>
+            <pre class="syntax"><code>/invite-status invite:&lt;invite code or URL&gt;</code></pre>
+            <ul>
+              <li>Accepts either an Invite Code like <code>abc123</code> or a URL like <code>https://discord.gg/abc123</code>.</li>
+              <li>Returns status, uses, expiration, channel, and Invite Role if the Invite is tracked by the bot.</li>
+              <li>Status values are <code>Active</code>, <code>Fully used</code>, or <code>Expired</code>.</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="command">
+          <div class="command-header">
+            <h3><code>/invite-capacity</code></h3>
+            <span class="tag">Capacity</span>
+          </div>
+          <div class="command-body">
+            <p>Use this before large bulk runs or when Invite creation starts failing.</p>
+            <pre class="syntax"><code>/invite-capacity</code></pre>
+            <ul>
+              <li>Shows total server Invites and the nominal Discord limit of <code>1000</code>.</li>
+              <li>Shows how many tracked bot-created Invites are live or dead.</li>
+              <li>Available capacity can be <code>0</code> or negative when the server is at or over the nominal limit.</li>
+            </ul>
+          </div>
+        </article>
+      </section>
+
+      <section id="cleanup">
+        <h2>Clean Up Invites</h2>
+
+        <article class="command">
+          <div class="command-header">
+            <h3><code>/invite-cleanup</code></h3>
+            <span class="tag">Destructive</span>
+          </div>
+          <div class="command-body">
+            <p>Use this to delete selected Invites from Discord and free Invite Capacity.</p>
+            <pre class="syntax"><code>/invite-cleanup [mode:&lt;cleanup mode&gt;] [confirm:i-know-what-im-doing-atf-bot]</code></pre>
+            <div class="panel warning">
+              <p><strong>Non-default modes are destructive.</strong> They require the exact confirm value <code>i-know-what-im-doing-atf-bot</code>. Deleted Invites stop working immediately.</p>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Mode</th>
+                  <th>Deletes</th>
+                  <th>Confirm required</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>All dead bot invites</code></td>
+                  <td>Tracked bot-created Invites that are expired or fully used.</td>
+                  <td>No. This is the default.</td>
+                </tr>
+                <tr>
+                  <td><code>All bot invites</code></td>
+                  <td>All tracked bot-created Invites, live or dead.</td>
+                  <td>Yes</td>
+                </tr>
+                <tr>
+                  <td><code>All dead invites</code></td>
+                  <td>All dead Invites on the server, including human-created Invites.</td>
+                  <td>Yes</td>
+                </tr>
+                <tr>
+                  <td><code>All invites</code></td>
+                  <td><span class="danger-text">Every Invite on the server, including live and human-created Invites.</span></td>
+                  <td>Yes</td>
+                </tr>
+              </tbody>
+            </table>
+            <ul>
+              <li>The bot reports how many Invites it deleted and the capacity afterward.</li>
+              <li>If deletion fails for some Invites, the bot lists the first errors.</li>
+              <li>Cleanup is blocked while a bulk Invite process is running.</li>
+            </ul>
+          </div>
+        </article>
+      </section>
+
+      <section id="exports">
+        <h2>Export Members</h2>
+
+        <article class="command">
+          <div class="command-header">
+            <h3><code>/all-member-export</code></h3>
+            <span class="tag">CSV Export</span>
+          </div>
+          <div class="command-body">
+            <p>Use this to export current non-bot server members as a CSV attachment.</p>
+            <pre class="syntax"><code>/all-member-export full
+/all-member-export filtered unit:hour|day|week|month [amount:&lt;number&gt;]</code></pre>
+            <table>
+              <thead>
+                <tr>
+                  <th>Subcommand</th>
+                  <th>Exports</th>
+                  <th>Filename</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>full</code></td>
+                  <td>All non-bot members, sorted by join date.</td>
+                  <td><code>members-full.csv</code></td>
+                </tr>
+                <tr>
+                  <td><code>filtered</code></td>
+                  <td>Non-bot members who joined within the recent time window.</td>
+                  <td>For example, <code>members-last-1-week.csv</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              Filtered exports require <code>unit</code>. The optional <code>amount</code> defaults to <code>1</code>
+              and must be a positive integer.
+            </p>
+            <p>
+              CSV columns are <code>username</code>, <code>displayName</code>, <code>userId</code>,
+              <code>joinedAt</code>, <code>roles</code>, <code>inviteCode</code>, <code>inviteRole</code>,
+              <code>requestedBy</code>, and <code>reason</code>.
+            </p>
+          </div>
+        </article>
+      </section>
+
+      <section id="quick-troubleshooting">
+        <h2>Quick Troubleshooting</h2>
+        <div class="panel">
+          <ul class="two-column-list">
+            <li><strong>No permission:</strong> you need the configured Admin or Mod role.</li>
+            <li><strong>Wrong channel:</strong> run the command in a designated bot channel.</li>
+            <li><strong>Bulk validation failed:</strong> fix the CSV errors shown in the reply and upload again.</li>
+            <li><strong>Not enough capacity:</strong> run <code>/invite-capacity</code>, then use default <code>/invite-cleanup</code> if dead bot Invites exist.</li>
+            <li><strong>Invite not found:</strong> it may have expired, been fully used and deleted, or been deleted manually.</li>
+            <li><strong>Output CSV unavailable:</strong> use the CSV attached to the original bulk reply if you still have it.</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>This is a staff-facing guide for the ATF Discord bot slash commands.</p>
+    </footer>
+  </div>
+</body>
+</html>

@@ -15,3 +15,7 @@ Default label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `read
 ### Domain docs
 
 Single-context repo — one `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### Published bot command docs
+
+The generated command reference in `docs/bot-commands.html` is published to justhtml.sh. After updating that file, update the existing published document instead of creating a new one. See `docs/agents/justhtml-bot-commands.md`.

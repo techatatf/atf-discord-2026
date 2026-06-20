@@ -4,7 +4,7 @@ import { config } from '../config';
 import { queries } from '../db';
 import { runBulkInviteLoop } from '../invite/bulk';
 import { generateRequestId, resolveRoleId } from '../invite/core';
-import { buildOutputCsv, parseCsv } from '../invite/csv';
+import { buildOutputCsv, DEFAULT_BULK_MAX_USES, parseCsv } from '../invite/csv';
 import { checkInvitePermissions } from '../invite/permissions';
 import { addInviteToCache } from '../invite/tracking';
 
@@ -24,6 +24,13 @@ export const data = new SlashCommandBuilder()
   .setDescription('Create invite links in bulk from a CSV file')
   .addAttachmentOption(option =>
     option.setName('file').setDescription('CSV file with invite details').setRequired(true)
+  )
+  .addIntegerOption(option =>
+    option
+      .setName('max-uses')
+      .setDescription(`Default maximum uses for rows without max-uses (default: ${DEFAULT_BULK_MAX_USES})`)
+      .setMinValue(1)
+      .setRequired(false)
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -37,6 +44,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const member = interaction.member as GuildMember;
 
   const attachment = interaction.options.getAttachment('file', true);
+  const defaultMaxUses = interaction.options.getInteger('max-uses') ?? DEFAULT_BULK_MAX_USES;
   if (!attachment.name.endsWith('.csv')) {
     await interaction.editReply('File must be a .csv file.');
     return;
@@ -51,7 +59,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const csvContent = await response.text();
 
   // Parse and validate
-  const parseResult = parseCsv(csvContent);
+  const parseResult = parseCsv(csvContent, { defaultMaxUses });
   const { rows, errors } = parseResult;
   if (errors.length > 0) {
     const errorList = errors.slice(0, 15).join('\n');

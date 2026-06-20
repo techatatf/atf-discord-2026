@@ -1,5 +1,13 @@
 export type InviteRole = 'student' | 'mentor';
 
+export const DEFAULT_BULK_MAX_USES = 50;
+export const DEFAULT_BULK_MAX_AGE_DAYS = 7;
+
+export interface CsvParseOptions {
+  defaultMaxUses?: number;
+  defaultMaxAge?: number;
+}
+
 export interface CsvRow {
   reason: string;
   maxUses: number;
@@ -84,7 +92,10 @@ function emptyResult(errors: string[]): CsvParseResult {
   return { rows: [], errors, originalHeaders: [], rawRows: [], linkColumnIndex: -1, roleColumnIndex: -1 };
 }
 
-export function parseCsv(content: string): CsvParseResult {
+export function parseCsv(content: string, options: CsvParseOptions = {}): CsvParseResult {
+  const defaultMaxUses = options.defaultMaxUses ?? DEFAULT_BULK_MAX_USES;
+  const defaultMaxAge = options.defaultMaxAge ?? DEFAULT_BULK_MAX_AGE_DAYS;
+
   const lines = content.split(/\r?\n/).filter(l => l.trim() !== '');
   if (lines.length < 2) {
     return emptyResult(['CSV must have a header row and at least one data row.']);
@@ -126,8 +137,8 @@ export function parseCsv(content: string): CsvParseResult {
     if (linkValue !== '') {
       rows.push({
         reason: fields[reasonIdx]?.trim() || '',
-        maxUses: 1,
-        maxAge: 7,
+        maxUses: defaultMaxUses,
+        maxAge: defaultMaxAge,
         role,
         existingLink: linkValue,
       });
@@ -141,7 +152,7 @@ export function parseCsv(content: string): CsvParseResult {
       continue;
     }
 
-    let maxUses = 1;
+    let maxUses = defaultMaxUses;
     if (maxUsesIdx !== -1) {
       const raw = fields[maxUsesIdx]?.trim() ?? '';
       if (raw === '') {
@@ -154,7 +165,7 @@ export function parseCsv(content: string): CsvParseResult {
         continue;
       }
       if (parsed === -1) {
-        maxUses = 1;
+        maxUses = defaultMaxUses;
       } else if (parsed < 1) {
         errors.push(`Row ${rowNum}: max-uses must be a positive integer or -1.`);
         continue;
@@ -163,7 +174,7 @@ export function parseCsv(content: string): CsvParseResult {
       }
     }
 
-    let maxAge = 7;
+    let maxAge = defaultMaxAge;
     if (maxAgeIdx !== -1) {
       const raw = fields[maxAgeIdx]?.trim() ?? '';
       if (raw === '') {
@@ -176,7 +187,7 @@ export function parseCsv(content: string): CsvParseResult {
         continue;
       }
       if (parsed === -1) {
-        maxAge = 7;
+        maxAge = defaultMaxAge;
       } else if (parsed < 1) {
         errors.push(`Row ${rowNum}: max-age must be a positive integer or -1 (0 is not allowed).`);
         continue;

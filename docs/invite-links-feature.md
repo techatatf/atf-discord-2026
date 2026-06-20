@@ -24,9 +24,10 @@ Creates a single invite link.
 
 Creates invite links in bulk from a CSV upload.
 
-| Option | Type | Required | Notes |
-|--------|------|----------|-------|
-| `file` | attachment | yes | CSV file (see format below) |
+| Option | Type | Required | Default | Notes |
+|--------|------|----------|---------|-------|
+| `file` | attachment | yes | — | CSV file (see format below) |
+| `max-uses` | integer | no | 50 | Default maximum uses for rows whose CSV omits `max-uses` or sets it to `-1`. Must be a positive integer. |
 
 **Response:** Ephemeral reply containing the output CSV as a Discord attachment + request ID. Also DMs the user a receipt (request ID + submitted file name or similar context).
 
@@ -63,8 +64,8 @@ Header row is required. `reason` is the only required column.
 | Column | Required | Default if column missing | Cell-level rules |
 |--------|----------|--------------------------|------------------|
 | `reason` | yes | — | Must not be empty |
-| `max-uses` | no | 1 | If column is present, every cell must be a positive integer or `-1` (meaning use default). Empty cells are a validation error. |
-| `max-age` | no | 7 (days) | Same rules as max-uses. Value is in days. `0` is rejected. |
+| `max-uses` | no | Command `max-uses` option (50 by default) | If column is present, every cell must be a positive integer or `-1` (meaning use the command default). Empty cells are a validation error. |
+| `max-age` | no | 7 (days) | Same cell rules as max-uses; `-1` means use the 7-day default. Value is in days. `0` is rejected. |
 
 ### Re-upload support (partial results)
 
@@ -91,7 +92,7 @@ Same as input with an appended `invite-link` column:
 reason,max-uses,max-age,invite-link
 Spring onboarding,1,7,https://discord.gg/abc123
 VIP guest access,3,14,https://discord.gg/def456
-Workshop attendee,1,7,https://discord.gg/ghi789
+Workshop attendee,-1,-1,https://discord.gg/ghi789
 ```
 
 ---

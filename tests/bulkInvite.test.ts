@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildOutputCsv, parseCsv } from '../src/invite/csv';
+import { buildOutputCsv, DEFAULT_BULK_MAX_USES, parseCsv } from '../src/invite/csv';
 import { InviteCreator, runBulkInviteLoop } from '../src/invite/bulk';
 
 const FIXTURES = path.join(__dirname, 'fixtures');
@@ -113,6 +113,24 @@ async function main() {
     const result = parseCsv(csv);
     assert.deepEqual(result.errors, []);
     assert.equal(result.rawRows[0][3], ' extra spaces ');
+  });
+
+  await test('defaults max-uses to 50 when the column is missing', () => {
+    const csv = 'reason,max-age,role\nTest,7,student';
+    const { rows, errors } = parseCsv(csv);
+    assert.deepEqual(errors, []);
+    assert.equal(rows[0].maxUses, DEFAULT_BULK_MAX_USES);
+  });
+
+  await test('uses command max-uses default for missing column and -1 cells', () => {
+    const missingColumn = parseCsv('reason,max-age\nMissing column,7', { defaultMaxUses: 25 });
+    assert.deepEqual(missingColumn.errors, []);
+    assert.equal(missingColumn.rows[0].maxUses, 25);
+
+    const sentinelCell = parseCsv('reason,max-uses,max-age\nSentinel,-1,7\nExplicit,3,7', { defaultMaxUses: 25 });
+    assert.deepEqual(sentinelCell.errors, []);
+    assert.equal(sentinelCell.rows[0].maxUses, 25);
+    assert.equal(sentinelCell.rows[1].maxUses, 3);
   });
 
   console.log('runBulkInviteLoop');
@@ -286,6 +304,7 @@ async function main() {
     const csv = 'reason,max-uses,max-age,role,invite-link\nTest,-1,-1,student,';
     const parseResult = parseCsv(csv);
     assert.deepEqual(parseResult.errors, []);
+    assert.equal(parseResult.rows[0].maxUses, DEFAULT_BULK_MAX_USES);
 
     const output = buildOutputCsv(parseResult, ['https://discord.gg/V']);
     const dataRow = output.split('\n')[1];

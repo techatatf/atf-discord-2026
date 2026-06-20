@@ -167,7 +167,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const { queries } = require('../db') as typeof import('../db');
   const roleNames = new Map(guild.roles.cache.map(r => [r.id, r.name]));
-  const joinMetadata = queries.getLatestJoinsWithMetadata.all() as LatestJoinRow[];
+  const joinMetadata = queries.getLatestJoinsWithMetadata.all() as unknown as LatestJoinRow[];
   const enriched = enrichMembersWithInviteMetadata(members, joinMetadata, roleNames);
 
   const sorted = sortMembers(enriched);
